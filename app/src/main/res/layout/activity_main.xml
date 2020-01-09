@@ -1,19 +1,62 @@
-<?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:opencv="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/frameLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/sample_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+
+    <Button
+        android:id="@+id/button_resetTracker"
+        android:layout_width="80dp"
+        android:layout_height="51dp"
+        android:text="@string/resetButtonText"
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintEnd_toEndOf="parent"
+        opencv:layout_constraintHorizontal_bias="0.984"
+        opencv:layout_constraintStart_toStartOf="parent"
+        opencv:layout_constraintTop_toTopOf="parent"
+        opencv:layout_constraintVertical_bias="0.976" />
+
+    <org.opencv.android.JavaCameraView
+        android:id="@+id/main_surfaceView"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:visibility="gone"
+        opencv:camera_id="any"
+        opencv:layout_constraintBottom_toTopOf="parent"
+        opencv:layout_constraintEnd_toStartOf="parent"
+        opencv:layout_constraintStart_toStartOf="parent"
+        opencv:layout_constraintTop_toTopOf="parent"
+        opencv:show_fps="true" />
+
+    <Button
+        android:id="@+id/button_startTrack"
+        android:layout_width="92dp"
+        android:layout_height="51dp"
+        android:layout_marginStart="220dp"
+        android:layout_marginEnd="14dp"
+        android:text="@string/startButtonText"
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintEnd_toStartOf="@+id/button_resetTracker"
+        opencv:layout_constraintStart_toStartOf="parent"
+        opencv:layout_constraintTop_toTopOf="parent"
+        opencv:layout_constraintVertical_bias="0.976" />
+
+    <Spinner
+        android:id="@+id/trackerSpinner"
+        android:layout_width="180dp"
+
+        android:layout_height="51dp"
+        android:layout_marginEnd="16dp"
+
+        android:spinnerMode="dropdown"
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintEnd_toStartOf="@+id/button_startTrack"
+        opencv:layout_constraintHorizontal_bias="0.866"
+        opencv:layout_constraintStart_toStartOf="parent"
+        opencv:layout_constraintTop_toTopOf="parent"
+        opencv:layout_constraintVertical_bias="0.976" />
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -1,3 +1,17 @@
 <resources>
-    <string name="app_name">FinalYearProject_54820425</string>
+    <string name="app_name">Object Tracking Camera</string>
+    <string name = "startButtonText">Start tracking</string>
+    <string name = "resetButtonText">Reset</string>
+
+    <string-array name="trackingAlgorithmName">
+        <item>KCF</item>
+        <item>MedianFlow</item>
+        <item>TLD</item>
+        <item>Boosting</item>
+        <item>CSRT</item>
+        <item>GOTURN</item>
+        <item>MIL</item>
+        <item>MOSSE</item>
+    </string-array>
+
 </resources>
