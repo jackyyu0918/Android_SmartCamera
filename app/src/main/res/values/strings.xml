@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Object Tracking Camera</string>
+    <string name="app_name">Object Tracking Camera (FYP)</string>
     <string name = "startButtonText">Start tracking</string>
     <string name = "resetButtonText">Reset</string>
 
