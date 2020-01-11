@@ -4,6 +4,7 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
@@ -11,6 +12,7 @@ import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Rect2d;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.tracking.Tracker;
 import org.opencv.tracking.TrackerBoosting;
@@ -39,6 +41,8 @@ import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import java.util.List;
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "OCVSample::Activity";
@@ -183,8 +187,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 isInitTracker = false;
             }
         });
-
-
     }
 
     @Override
@@ -217,6 +219,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     public void onCameraViewStarted(int width, int height) {
         mGray = new Mat();
         mRgba = new Mat();
+        testMat = Mat.zeros(100,100,CvType.CV_8UC4);
     }
 
     public void onCameraViewStopped() {
@@ -228,6 +231,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         mRgba = inputFrame.rgba();
         mGray = inputFrame.gray();
 
+        Size sizeRgba = mRgba.size();
+        Mat rgbaInnerWindow;
+        int rows = (int) sizeRgba.height;
+        int cols = (int) sizeRgba.width;
+
         //tracking section
         // if initialized tracker, start update the ROI
         if(isInitTracker){
@@ -237,11 +245,28 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             roiRect.height = (int)roi.height;
 
             System.out.println("Tracker update result: " + objectTracker.update(mGray,roi));
+
+            //top-left corner
+            Mat zoomCorner = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
+
+            //matrix at the middle
+            //Mat mZoomWindow = mRgba.submat(rows / 2 - 9 * rows / 100, rows / 2 + 9 * rows / 100, cols / 2 - 9 * cols / 100, cols / 2 + 9 * cols / 100);
+            Mat mZoomWindow = mRgba.submat((int)(roi.y), (int)(roi.y+roi.height), (int)(roi.x), (int)(roi.x+roi.width));
+
+            //show middle matrix at the top-left corner
+            Imgproc.resize(mZoomWindow, zoomCorner, zoomCorner.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+            //Imgproc.resize(mZoomWindow, zoomCorner, zoomCorner.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+            Size wwsize = mZoomWindow.size();
+            Imgproc.rectangle(mZoomWindow, new Point(1, 1), new Point(wwsize.width - 2, wwsize.height - 2), new Scalar(255, 0, 0, 255), 2);
+            zoomCorner.release();
+            mZoomWindow.release();
         }
 
         //draw rectangle using Rect roiRect
         Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
+
         return mRgba;
+
     }
 
     //my own function
