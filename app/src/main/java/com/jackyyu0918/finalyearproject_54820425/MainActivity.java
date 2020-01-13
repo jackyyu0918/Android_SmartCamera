@@ -4,6 +4,7 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.android.CameraBridgeViewBase;
@@ -59,6 +60,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private Mat testMat;
     private Mat videoMat;
 
+    private Mat targetObjectMat;
+    private Mat zoomWindowMat;
+
     //Tracker
     //private TrackerKCF firstTracker;
     private Tracker objectTracker;
@@ -71,9 +75,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     private Rect roiRect;
 
-    //button for init tracker
+    //Mode switching
+        //false = small window
+    private boolean isFullScreen = false;
+
+    //button
+        // for init tracker
     private Button button_startTrack;
     private String currentTrackerType;
+
+        // for reset tracker
+    private Button button_resetTrack;
+
+        // for full view tracking
+    private Button button_fullView;
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
@@ -153,8 +168,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         });
 
         //button onClick listener
-        //start button
-        Button button_startTrack = findViewById(R.id.button_startTrack);
+            //start button
+        button_startTrack = findViewById(R.id.button_startTrack);
         button_startTrack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view)
@@ -177,8 +192,28 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 toast.show();
             }
         });
-        //reset button
-        Button button_resetTrack = findViewById(R.id.button_resetTracker);
+
+            //switch mode button
+        button_fullView = findViewById(R.id.button_fullView);
+        button_fullView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view)
+            {
+                if(isFullScreen == false) {
+                    isFullScreen = true;
+                } else {
+                    isFullScreen = false;
+                }
+                //Tracker message
+                Toast toast = Toast.makeText(MainActivity.this,
+                        "Full screen mode: " + isFullScreen , Toast.LENGTH_LONG);
+                //顯示Toast
+                toast.show();
+            }
+        });
+
+            //reset button
+        button_resetTrack = findViewById(R.id.button_resetTracker);
         button_resetTrack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view)
@@ -219,7 +254,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     public void onCameraViewStarted(int width, int height) {
         mGray = new Mat();
         mRgba = new Mat();
-        testMat = Mat.zeros(100,100,CvType.CV_8UC4);
+        testMat =  new Mat();
+        targetObjectMat = new Mat();
+        zoomWindowMat = new Mat();
     }
 
     public void onCameraViewStopped() {
@@ -232,7 +269,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         mGray = inputFrame.gray();
 
         Size sizeRgba = mRgba.size();
-        Mat rgbaInnerWindow;
         int rows = (int) sizeRgba.height;
         int cols = (int) sizeRgba.width;
 
@@ -243,30 +279,29 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             roiRect.y = (int)roi.y;
             roiRect.width = (int)roi.width;
             roiRect.height = (int)roi.height;
-
             System.out.println("Tracker update result: " + objectTracker.update(mGray,roi));
 
-            //top-left corner
-            Mat zoomCorner = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
+            targetObjectMat = mRgba.submat((int)(roi.y), (int)(roi.y+roi.height), (int)(roi.x), (int)(roi.x+roi.width));
 
-            //matrix at the middle
-            //Mat mZoomWindow = mRgba.submat(rows / 2 - 9 * rows / 100, rows / 2 + 9 * rows / 100, cols / 2 - 9 * cols / 100, cols / 2 + 9 * cols / 100);
-            Mat mZoomWindow = mRgba.submat((int)(roi.y), (int)(roi.y+roi.height), (int)(roi.x), (int)(roi.x+roi.width));
+            if(isFullScreen == false){
+                //top-left corner of mRgba
+                zoomWindowMat = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
 
-            //show middle matrix at the top-left corner
-            Imgproc.resize(mZoomWindow, zoomCorner, zoomCorner.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
-            //Imgproc.resize(mZoomWindow, zoomCorner, zoomCorner.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
-            Size wwsize = mZoomWindow.size();
-            Imgproc.rectangle(mZoomWindow, new Point(1, 1), new Point(wwsize.width - 2, wwsize.height - 2), new Scalar(255, 0, 0, 255), 2);
-            zoomCorner.release();
-            mZoomWindow.release();
+                //show target matrix at the top-left corner
+                Imgproc.resize(targetObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+
+            } else {
+                mRgba.copyTo(testMat);
+
+                //full the screen with target matrix
+                Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+                return testMat;
+            }
         }
 
         //draw rectangle using Rect roiRect
         Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
-
         return mRgba;
-
     }
 
     //my own function

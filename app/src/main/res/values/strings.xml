@@ -2,6 +2,7 @@
     <string name="app_name">Object Tracking Camera (FYP)</string>
     <string name = "startButtonText">Start tracking</string>
     <string name = "resetButtonText">Reset</string>
+    <string name = "switchModeButtonText">Switch display mode</string>
 
     <string-array name="trackingAlgorithmName">
         <item>KCF</item>
