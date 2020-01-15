@@ -265,6 +265,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
+
         mRgba = inputFrame.rgba();
         mGray = inputFrame.gray();
 
@@ -301,6 +302,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //draw rectangle using Rect roiRect
         Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
+
         return mRgba;
     }
 
