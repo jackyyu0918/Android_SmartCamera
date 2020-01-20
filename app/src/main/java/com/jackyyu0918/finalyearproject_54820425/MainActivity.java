@@ -4,8 +4,6 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
-import org.opencv.core.Core;
-import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
@@ -28,9 +26,14 @@ import org.opencv.tracking.TrackerTLD;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.media.CamcorderProfile;
+import android.media.MediaRecorder;
+import android.opengl.EGLSurface;
 import android.os.Bundle;
+import android.os.Environment;
 import android.util.Log;
 import android.view.MenuItem;
+import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
@@ -43,7 +46,8 @@ import android.widget.Toast;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import java.util.List;
+import java.io.File;
+import java.io.IOException;
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "OCVSample::Activity";
@@ -51,11 +55,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private CameraBridgeViewBase mOpenCvCameraView;
     private boolean              mIsJavaCamera = true;
     private MenuItem             mItemSwitchCamera = null;
-    private static final int CAMERA_REQUEST = 1888;
 
     //My code
+    private SurfaceHolder surfaceHolder;
+
+
     //Matrix
     private Mat mRgba;
+
     private Mat mGray;
     private Mat testMat;
     private Mat videoMat;
@@ -90,6 +97,15 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         // for full view tracking
     private Button button_fullView;
 
+        // for start recording
+    private Button button_startRecord;
+
+    //Media recorder
+    public MediaRecorder recorder = new MediaRecorder();
+    private boolean isRecording = false;
+
+
+
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
@@ -121,21 +137,41 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         setContentView(R.layout.activity_main);
 
         mOpenCvCameraView = findViewById(R.id.main_surfaceView);
-
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
-
         mOpenCvCameraView.setCvCameraViewListener(this);
 
+        surfaceHolder = mOpenCvCameraView.getHolder();
+
+        //Grant permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_DENIED){
-            ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.CAMERA}, CAMERA_REQUEST);
+            ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.CAMERA}, 1888);
         }
 
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_DENIED){
+            ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE}, 112);
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_DENIED){
+            ActivityCompat.requestPermissions(this, new String[] {Manifest.permission.RECORD_AUDIO}, 120);
+        }
 
         //Tracker section
         //roi setting
+
+        //old square roi 1:1
+        /*
         trackerCoordinate = new Point(700,200);
         trackerSize = new Point(300,300);
+        greenColorOutline = new Scalar(0, 255, 0, 255);
+
+         */
+
+        //new 2:1 size
+        trackerCoordinate = new Point(700,200);
+        trackerSize = new Point(600,300);
         greenColorOutline = new Scalar(0, 255, 0, 255);
 
         roi = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
@@ -222,6 +258,35 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 isInitTracker = false;
             }
         });
+
+            //start recording button
+        //start button
+        button_startRecord = findViewById(R.id.button_startRecord);
+        button_startRecord.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view)
+            {
+                prepareRecord();
+
+                if(isRecording == true){
+                    //Recording message
+                    Toast toast = Toast.makeText(MainActivity.this,
+                            "Start recording.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast.show();
+                } else {
+                    //Recording message
+                    Toast toast = Toast.makeText(MainActivity.this,
+                            "End recording.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast.show();
+                }
+            }
+        });
+
+
+        //Media recorder testing
+
     }
 
     @Override
@@ -249,6 +314,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         super.onDestroy();
         if (mOpenCvCameraView != null)
             mOpenCvCameraView.disableView();
+
+        //Media recorder;
+        //recorder.release();
     }
 
     public void onCameraViewStarted(int width, int height) {
@@ -265,7 +333,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
-
         mRgba = inputFrame.rgba();
         mGray = inputFrame.gray();
 
@@ -296,6 +363,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
                 //full the screen with target matrix
                 Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+
+                //draw on full screen
+                Imgproc.rectangle(testMat,roiRect,greenColorOutline,2);
                 return testMat;
             }
         }
@@ -343,6 +413,79 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 break;
             default:
                 break;
+        }
+    }
+
+    public void prepareRecord(){
+        //Media recorder initialization
+        if(isRecording == false){
+            //Working
+            /*
+            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+
+            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.MPEG_4_SP);
+
+            recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"/FYP/outputVideo.mp4");
+
+             */
+
+
+            //Only Audio
+            //Success!
+            /*
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+            recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"outputAudio.3gp");
+
+             */
+
+            //Testing
+            //recorder.setInputSurface(surfaceHolder.getSurface());
+            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"outputVideo.mp4");
+            recorder.setVideoEncodingBitRate(1000000);
+            recorder.setVideoFrameRate(30);
+            recorder.setVideoSize(mOpenCvCameraView.getWidth(), mOpenCvCameraView.getHeight());
+            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+
+
+
+            try {
+                recorder.prepare();
+                System.out.println("success prepared media recorder!!");
+
+            } catch (IllegalStateException e) {
+                Log.e("debug mediarecorder", "not prepare");
+            } catch (IOException e) {
+                Log.e("debug mediarecorder", "not prepare IOException");
+            }
+
+
+            mOpenCvCameraView.setRecorder(recorder);
+
+            recorder.start();
+            isRecording = true;
+        } else {
+
+            //testing add codes
+            recorder.setOnErrorListener(null);
+            recorder.setOnInfoListener(null);
+            recorder.setPreviewDisplay(null);
+
+
+            try{
+                recorder.stop();
+            }catch(RuntimeException stopException){
+                System.out.println("RuntimeException occurred!");
+            }
+
+            isRecording = false;
         }
     }
 }
