@@ -26,9 +26,7 @@ import org.opencv.tracking.TrackerTLD;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
-import android.media.CamcorderProfile;
 import android.media.MediaRecorder;
-import android.opengl.EGLSurface;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
@@ -48,6 +46,9 @@ import androidx.core.content.ContextCompat;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "OCVSample::Activity";
@@ -56,7 +57,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private boolean              mIsJavaCamera = true;
     private MenuItem             mItemSwitchCamera = null;
 
-    //My code
+    //--------------------My code-----------------//
     private SurfaceHolder surfaceHolder;
 
 
@@ -71,7 +72,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private Mat zoomWindowMat;
 
     //Tracker
-    //private TrackerKCF firstTracker;
     private Tracker objectTracker;
     private boolean isInitTracker = false;
 
@@ -103,8 +103,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     //Media recorder
     public MediaRecorder recorder = new MediaRecorder();
     private boolean isRecording = false;
+    private boolean isMediaRecorderInit = false;
 
-
+    //--------------------------------------------------------------------------//
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
@@ -140,7 +141,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
 
-        surfaceHolder = mOpenCvCameraView.getHolder();
+        //surfaceHolder = mOpenCvCameraView.getHolder();
 
         //Grant permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -170,8 +171,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
          */
 
         //new 2:1 size
-        trackerCoordinate = new Point(700,200);
-        trackerSize = new Point(600,300);
+        trackerCoordinate = new Point(1000,200);
+        trackerSize = new Point(200,200);
         greenColorOutline = new Scalar(0, 255, 0, 255);
 
         roi = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
@@ -266,27 +267,33 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             @Override
             public void onClick(View view)
             {
-                prepareRecord();
+                // prepareRecord();  <-- Moved to onCreate()
 
-                if(isRecording == true){
+                if(isRecording == false){
+                    recorder.reset();
+                    prepareRecorder();
+
                     //Recording message
                     Toast toast = Toast.makeText(MainActivity.this,
-                            "Start recording.", Toast.LENGTH_LONG);
+                            "Start recording...", Toast.LENGTH_LONG);
                     //顯示Toast
                     toast.show();
+                    button_startRecord.setText("STOP RECORDING");
+                    startRecord();
                 } else {
                     //Recording message
                     Toast toast = Toast.makeText(MainActivity.this,
-                            "End recording.", Toast.LENGTH_LONG);
+                            "End recording...", Toast.LENGTH_LONG);
                     //顯示Toast
                     toast.show();
+                    button_startRecord.setText("START RECORDING");
+
+                    //empty the recorder before stop
+                    mOpenCvCameraView.setRecorder(null);
+                    stopRecord();
                 }
             }
         });
-
-
-        //Media recorder testing
-
     }
 
     @Override
@@ -416,76 +423,62 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
-    public void prepareRecord(){
-        //Media recorder initialization
-        if(isRecording == false){
-            //Working
-            /*
-            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+    public void prepareRecorder(){
+        //Success for start,but shut down on stop
+        recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
 
-            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
 
-            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.MPEG_4_SP);
+        String currentDateandTime = sdf.format(new Date());
 
-            recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"/FYP/outputVideo.mp4");
+        recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"/FYP/" + currentDateandTime + ".mp4");
+        recorder.setVideoEncodingBitRate(1000000);
+        recorder.setVideoFrameRate(30);
+        recorder.setVideoSize(mOpenCvCameraView.getWidth(), mOpenCvCameraView.getHeight());
+        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+        recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
 
-             */
+        try {
+            recorder.prepare();
+            System.out.println("success prepared media recorder!!");
 
+        } catch (IllegalStateException e) {
+            Log.e("debug mediarecorder", "not prepare");
+        } catch (IOException e) {
+            Log.e("debug mediarecorder", "not prepare IOException");
+        }
+        mOpenCvCameraView.setRecorder(recorder);
 
-            //Only Audio
-            //Success!
+        //Only Audio
+        //Success!
             /*
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
             recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
             recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"outputAudio.3gp");
-
              */
+    }
 
-            //Testing
-            //recorder.setInputSurface(surfaceHolder.getSurface());
-            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-            recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-            recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"outputVideo.mp4");
-            recorder.setVideoEncodingBitRate(1000000);
-            recorder.setVideoFrameRate(30);
-            recorder.setVideoSize(mOpenCvCameraView.getWidth(), mOpenCvCameraView.getHeight());
-            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+    public void startRecord() {
+        recorder.start();
+        isRecording = true;
+    }
 
+    public void stopRecord(){
+        //testing add codes
+        /* ignore
+        recorder.setOnErrorListener(null);
+        recorder.setOnInfoListener(null);
+        recorder.setPreviewDisplay(null);
+         */
 
-
-            try {
-                recorder.prepare();
-                System.out.println("success prepared media recorder!!");
-
-            } catch (IllegalStateException e) {
-                Log.e("debug mediarecorder", "not prepare");
-            } catch (IOException e) {
-                Log.e("debug mediarecorder", "not prepare IOException");
-            }
-
-
-            mOpenCvCameraView.setRecorder(recorder);
-
-            recorder.start();
-            isRecording = true;
-        } else {
-
-            //testing add codes
-            recorder.setOnErrorListener(null);
-            recorder.setOnInfoListener(null);
-            recorder.setPreviewDisplay(null);
-
-
-            try{
-                recorder.stop();
-            }catch(RuntimeException stopException){
-                System.out.println("RuntimeException occurred!");
-            }
-
+        try{
+            recorder.stop();
             isRecording = false;
+        }catch(RuntimeException stopException){
+            System.out.println("RuntimeException occurred!");
         }
     }
 }
