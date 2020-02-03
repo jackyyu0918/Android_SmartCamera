@@ -70,17 +70,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     private Mat targetObjectMat;
     private Mat zoomWindowMat;
+    private Mat optimizeObjectMat;
 
     //Tracker
     private Tracker objectTracker;
     private boolean isInitTracker = false;
 
-    private Rect2d roi;
+    private Rect2d roiRect2d;
+    private Rect roiRect;
+
+    //Pre-defined size
     private Point trackerCoordinate;
     private Point trackerSize;
     private Scalar greenColorOutline;
 
-    private Rect roiRect;
 
     //Mode switching
         //false = small window
@@ -160,9 +163,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
 
         //Tracker section
-        //roi setting
+        //roiRect2d setting
 
-        //old square roi 1:1
+        //old square roiRect2d 1:1
         /*
         trackerCoordinate = new Point(700,200);
         trackerSize = new Point(300,300);
@@ -172,17 +175,17 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //new 2:1 size
         trackerCoordinate = new Point(1000,200);
-        trackerSize = new Point(200,200);
+        trackerSize = new Point(100,200);
         greenColorOutline = new Scalar(0, 255, 0, 255);
 
-        roi = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
+        roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
         roiRect = new Rect((int)trackerCoordinate.x,(int)trackerCoordinate.y,(int)trackerSize.x,(int)trackerSize.y);
 
         //tracker creation, base on drop down menu selection
         //currentTrackerType = "KCF";
 
         //spinner tracker selection
-        Spinner trackerSpinner  = findViewById(R.id.trackerSpinner);
+        final Spinner trackerSpinner  = findViewById(R.id.trackerSpinner);
 
         final ArrayAdapter<String> nameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.trackingAlgorithmName));
 
@@ -218,15 +221,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 createTracker(currentTrackerType);
 
                 //tracker initialization
-                objectTracker.init(mGray, roi);
-                //System.out.println("Tracker init result: " + firstTracker.init(mGray,roi));
+                objectTracker.init(mGray, roiRect2d);
+                //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
                 isInitTracker = true;
 
                 //Tracker message
-                Toast toast = Toast.makeText(MainActivity.this,
+                Toast toast1 = Toast.makeText(MainActivity.this,
                         "Current tracker: " + objectTracker.getClass(), Toast.LENGTH_LONG);
                 //顯示Toast
-                toast.show();
+                toast1.show();
+
+                Toast toast2 = Toast.makeText(MainActivity.this,
+                        "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
+                //顯示Toast
+                toast2.show();
             }
         });
 
@@ -255,8 +263,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             @Override
             public void onClick(View view)
             {
-                objectTracker = null;
                 isInitTracker = false;
+                objectTracker = null;
+
+                //new 2:1 size
+                resetTraacker();
             }
         });
 
@@ -332,6 +343,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         testMat =  new Mat();
         targetObjectMat = new Mat();
         zoomWindowMat = new Mat();
+        optimizeObjectMat = new Mat();
     }
 
     public void onCameraViewStopped() {
@@ -350,31 +362,56 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         //tracking section
         // if initialized tracker, start update the ROI
         if(isInitTracker){
-            roiRect.x = (int)roi.x;
-            roiRect.y = (int)roi.y;
-            roiRect.width = (int)roi.width;
-            roiRect.height = (int)roi.height;
-            System.out.println("Tracker update result: " + objectTracker.update(mGray,roi));
 
-            targetObjectMat = mRgba.submat((int)(roi.y), (int)(roi.y+roi.height), (int)(roi.x), (int)(roi.x+roi.width));
+            //Pre-defined target window details: x,y,width,height
+            //Assign 2d to 1d:
+            // 2d: update by tracker
+            // 1d: update Rec
+            roiRect.x = (int) roiRect2d.x;
+            roiRect.y = (int) roiRect2d.y;
+            roiRect.width = (int) roiRect2d.width;
+            roiRect.height = (int) roiRect2d.height;
 
-            if(isFullScreen == false){
-                //top-left corner of mRgba
-                zoomWindowMat = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
+            System.out.println("x,y,width,height: " + (int) roiRect2d.x + ", "+ (int) roiRect2d.y + ", "+ (int) roiRect2d.width + ", "+ (int) roiRect2d.height);
 
-                //show target matrix at the top-left corner
-                Imgproc.resize(targetObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+            //Update tracker information to roiRect2d
+            System.out.println("Tracker update result: " + objectTracker.update(mGray, roiRect2d));
+
+            //make sure target object is inside the screen
+            if(roiRect2d.x+ roiRect2d.width > 1920 || roiRect2d.x < 0 || roiRect2d.y < 0 || roiRect2d.y+ roiRect2d.height > 960 ) {
+                System.out.println("Tracking Failed, target object fall outside screen");
 
             } else {
-                mRgba.copyTo(testMat);
+                //Target object matrix frame
+                targetObjectMat = mRgba.submat((int)(roiRect2d.y), (int)(roiRect2d.y+ roiRect2d.height), (int)(roiRect2d.x), (int)(roiRect2d.x+ roiRect2d.width));
 
-                //full the screen with target matrix
-                Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+                if(roiRect2d.height > roiRect2d.width) {
+                    //Optimized aspect ratio for video recording
+                    optimizeObjectMat = mRgba.submat((int) (roiRect2d.y), (int) (roiRect2d.y + roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width/2) - roiRect2d.height), (int) ((roiRect2d.x + (roiRect2d.width/2) - roiRect2d.height) + 2* roiRect2d.height));
+                }
 
-                //draw on full screen
-                Imgproc.rectangle(testMat,roiRect,greenColorOutline,2);
-                return testMat;
+                // Small window preview mode
+                if(isFullScreen == false){
+                    //top-left corner of mRgba
+                    zoomWindowMat = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
+
+                    //show target matrix at the top-left corner
+                    //Imgproc.resize(targetObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+                    Imgproc.resize(optimizeObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+
+                // Full screen mode (for video recording)
+                } else {
+                    mRgba.copyTo(testMat);
+
+                    //full the screen with target matrix
+                    Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+
+                    //draw on full screen
+                    Imgproc.rectangle(testMat,roiRect,greenColorOutline,2);
+                    return testMat;
+                }
             }
+
         }
 
         //draw rectangle using Rect roiRect
@@ -480,5 +517,17 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }catch(RuntimeException stopException){
             System.out.println("RuntimeException occurred!");
         }
+    }
+
+    public void resetTraacker(){
+        roiRect.x = (int)trackerCoordinate.x;
+        roiRect.y = (int)trackerCoordinate.y;
+        roiRect.width = (int)trackerSize.x;
+        roiRect.height = (int)trackerSize.y;
+
+        roiRect2d.x = trackerCoordinate.x;
+        roiRect2d.y = trackerCoordinate.y;
+        roiRect2d.width = trackerSize.x;
+        roiRect2d.height = trackerSize.y;
     }
 }
