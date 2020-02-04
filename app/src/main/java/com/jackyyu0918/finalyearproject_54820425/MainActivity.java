@@ -38,6 +38,7 @@ import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Toast;
 
@@ -53,7 +54,8 @@ import java.util.Locale;
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "OCVSample::Activity";
 
-    private CameraBridgeViewBase mOpenCvCameraView;
+    //private CameraBridgeViewBase mOpenCvCameraView;
+    private Zoomcameraview mOpenCvCameraView;
     private boolean              mIsJavaCamera = true;
     private MenuItem             mItemSwitchCamera = null;
 
@@ -137,14 +139,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         Log.i(TAG, "called onCreate");
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-
         setContentView(R.layout.activity_main);
 
+        //default setting
+        /*
         mOpenCvCameraView = findViewById(R.id.main_surfaceView);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setCvCameraViewListener(this);
+         */
 
-        //surfaceHolder = mOpenCvCameraView.getHolder();
+        //zoom view setting
+        mOpenCvCameraView = (Zoomcameraview)findViewById(R.id.ZoomCameraView);
+        mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
+        mOpenCvCameraView.setZoomControl((SeekBar) findViewById(R.id.CameraZoomControls));
+        mOpenCvCameraView.setCvCameraViewListener(this);
 
         //Grant permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)

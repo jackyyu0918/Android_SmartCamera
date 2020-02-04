@@ -20,8 +20,8 @@
         opencv:layout_constraintTop_toTopOf="@+id/button_startTrack"
         opencv:layout_constraintVertical_bias="0.0" />
 
-    <org.opencv.android.JavaCameraView
-        android:id="@+id/main_surfaceView"
+    <com.jackyyu0918.finalyearproject_54820425.Zoomcameraview
+        android:id="@+id/ZoomCameraView"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:visibility="gone"
@@ -86,13 +86,11 @@
         opencv:layout_constraintEnd_toEndOf="parent" />
 
     <SeekBar
-        android:id="@+id/seekBar"
+        android:id="@+id/CameraZoomControls"
         android:layout_width="420dp"
         android:layout_height="28dp"
-        android:layout_marginStart="50dp"
-        android:layout_marginBottom="8dp"
-        opencv:layout_constraintBottom_toTopOf="@+id/trackerSpinner"
-        opencv:layout_constraintStart_toStartOf="parent" />
+        tools:layout_editor_absoluteX="64dp"
+        tools:layout_editor_absoluteY="157dp" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
