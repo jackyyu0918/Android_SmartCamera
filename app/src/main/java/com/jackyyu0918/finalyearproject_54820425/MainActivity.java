@@ -175,7 +175,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //new 2:1 size
         trackerCoordinate = new Point(1000,200);
-        trackerSize = new Point(100,200);
+        trackerSize = new Point(500,200);
         greenColorOutline = new Scalar(0, 255, 0, 255);
 
         roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
@@ -385,12 +385,15 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 //Target object matrix frame
                 targetObjectMat = mRgba.submat((int)(roiRect2d.y), (int)(roiRect2d.y+ roiRect2d.height), (int)(roiRect2d.x), (int)(roiRect2d.x+ roiRect2d.width));
 
-                if(roiRect2d.height > roiRect2d.width) {
-                    //Optimized aspect ratio for video recording
-                    optimizeObjectMat = mRgba.submat((int) (roiRect2d.y), (int) (roiRect2d.y + roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width/2) - roiRect2d.height), (int) ((roiRect2d.x + (roiRect2d.width/2) - roiRect2d.height) + 2* roiRect2d.height));
+                if(roiRect2d.height >= roiRect2d.width) {
+                    //Optimized aspect ratio for video recording (2:1)
+                    optimizeObjectMat = mRgba.submat((int) (roiRect2d.y), (int) (roiRect2d.y + roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width/2) - roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width/2) + roiRect2d.height));
+                } else if(roiRect2d.height < roiRect2d.width){
+                    //Optimized aspect ratio for video recording (2:1)
+                    optimizeObjectMat = mRgba.submat((int)(roiRect2d.y + (roiRect2d.height/2) - roiRect2d.width/4), (int)((roiRect2d.y + (roiRect2d.height/2) - roiRect2d.width/4) + roiRect2d.width/2), (int)(roiRect2d.x), (int)(roiRect2d.x+ roiRect2d.width));
                 }
 
-                // Small window preview mode
+                    // Small window preview mode
                 if(isFullScreen == false){
                     //top-left corner of mRgba
                     zoomWindowMat = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
@@ -404,8 +407,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     mRgba.copyTo(testMat);
 
                     //full the screen with target matrix
-                    Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
-
+                    //Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+                    Imgproc.resize(optimizeObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
                     //draw on full screen
                     Imgproc.rectangle(testMat,roiRect,greenColorOutline,2);
                     return testMat;

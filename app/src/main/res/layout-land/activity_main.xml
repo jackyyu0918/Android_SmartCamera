@@ -44,7 +44,7 @@
 
     <Spinner
         android:id="@+id/trackerSpinner"
-        android:layout_width="421dp"
+        android:layout_width="420dp"
 
         android:layout_height="56dp"
 
@@ -74,6 +74,25 @@
         android:text="START RECORDING"
         opencv:layout_constraintBottom_toTopOf="@+id/button_fullView"
         opencv:layout_constraintEnd_toEndOf="parent" />
+
+    <Switch
+        android:id="@+id/switch1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="7dp"
+        android:text="Switch"
+        opencv:layout_constraintBottom_toTopOf="@+id/button_startRecord"
+        opencv:layout_constraintEnd_toEndOf="parent" />
+
+    <SeekBar
+        android:id="@+id/seekBar"
+        android:layout_width="420dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="50dp"
+        android:layout_marginBottom="8dp"
+        opencv:layout_constraintBottom_toTopOf="@+id/trackerSpinner"
+        opencv:layout_constraintStart_toStartOf="parent" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
