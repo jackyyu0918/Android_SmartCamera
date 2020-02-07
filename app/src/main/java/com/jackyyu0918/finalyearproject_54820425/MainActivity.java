@@ -31,9 +31,11 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -60,7 +62,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private MenuItem             mItemSwitchCamera = null;
 
     //--------------------My code-----------------//
-    private SurfaceHolder surfaceHolder;
+    //sensor view object
+    private View SensorView;
 
 
     //Matrix
@@ -139,7 +142,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         Log.i(TAG, "called onCreate");
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        //Hide bar
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_main);
+
 
         //default setting
         /*
@@ -180,6 +187,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         greenColorOutline = new Scalar(0, 255, 0, 255);
 
          */
+
 
         //new 2:1 size
         trackerCoordinate = new Point(1000,200);
@@ -313,6 +321,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 }
             }
         });
+
+        //Sensor View at top
+        SensorView = findViewById(R.id.SensorView);
+        SensorView.setOnTouchListener(handleDragTouch);
     }
 
     @Override
@@ -541,4 +553,34 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         roiRect2d.width = trackerSize.x;
         roiRect2d.height = trackerSize.y;
     }
+
+    //Top view for sensoring
+    private View.OnTouchListener handleDragTouch = new View.OnTouchListener() {
+
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+
+            int x = (int) event.getX();
+            int y = (int) event.getY();
+
+            Toast toast1 = Toast.makeText(MainActivity.this,
+                    "X: " + x + ", Y: " + y, Toast.LENGTH_LONG);
+            //顯示Toast
+            toast1.show();
+
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    Log.i("TAG", "touched down");
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    Log.i("TAG", "moving: (" + x + ", " + y + ")");
+                    break;
+                case MotionEvent.ACTION_UP:
+                    Log.i("TAG", "touched up");
+                    break;
+            }
+
+            return true;
+        }
+    };
 }

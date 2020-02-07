@@ -10,15 +10,14 @@
         android:id="@+id/button_resetTracker"
         android:layout_width="80dp"
         android:layout_height="56dp"
-        android:layout_marginStart="15dp"
         android:layout_marginEnd="48dp"
+        android:layout_marginBottom="28dp"
         android:text="@string/resetButtonText"
-        opencv:layout_constraintBottom_toBottomOf="@+id/button_startTrack"
+        opencv:layout_constraintBottom_toBottomOf="parent"
         opencv:layout_constraintEnd_toEndOf="parent"
-        opencv:layout_constraintHorizontal_bias="0.0"
+        opencv:layout_constraintHorizontal_bias="1.0"
         opencv:layout_constraintStart_toEndOf="@+id/button_startTrack"
-        opencv:layout_constraintTop_toTopOf="@+id/button_startTrack"
-        opencv:layout_constraintVertical_bias="0.0" />
+        android:elevation="3dp"/>
 
     <com.jackyyu0918.finalyearproject_54820425.Zoomcameraview
         android:id="@+id/ZoomCameraView"
@@ -37,10 +36,13 @@
         android:layout_width="92dp"
         android:layout_height="56dp"
         android:layout_marginStart="28dp"
+        android:layout_marginBottom="30dp"
         android:text="@string/startButtonText"
         opencv:layout_constraintBottom_toBottomOf="@+id/trackerSpinner"
         opencv:layout_constraintStart_toEndOf="@+id/trackerSpinner"
-        opencv:layout_constraintTop_toTopOf="@+id/trackerSpinner" />
+        opencv:layout_constraintTop_toTopOf="@+id/trackerSpinner"
+        opencv:layout_constraintVertical_bias="0.0"
+        android:elevation="3dp"/>
 
     <Spinner
         android:id="@+id/trackerSpinner"
@@ -48,12 +50,13 @@
 
         android:layout_height="56dp"
 
-        android:layout_marginStart="50dp"
+        android:layout_marginStart="48dp"
         android:layout_marginBottom="30dp"
         android:background="@android:color/background_light"
         android:spinnerMode="dropdown"
         opencv:layout_constraintBottom_toBottomOf="parent"
-        opencv:layout_constraintStart_toStartOf="parent" />
+        opencv:layout_constraintStart_toStartOf="parent"
+        android:elevation="3dp"/>
 
     <Button
         android:id="@+id/button_fullView"
@@ -63,7 +66,8 @@
         android:layout_marginBottom="15dp"
         android:text="@string/switchModeButtonText"
         opencv:layout_constraintBottom_toTopOf="@+id/button_resetTracker"
-        opencv:layout_constraintEnd_toEndOf="parent" />
+        opencv:layout_constraintEnd_toEndOf="parent"
+        android:elevation="3dp"/>
 
     <Button
         android:id="@+id/button_startRecord"
@@ -73,24 +77,43 @@
         android:layout_marginBottom="15dp"
         android:text="START RECORDING"
         opencv:layout_constraintBottom_toTopOf="@+id/button_fullView"
-        opencv:layout_constraintEnd_toEndOf="parent" />
+        opencv:layout_constraintEnd_toEndOf="parent"
+        android:elevation="3dp"/>
 
     <Switch
-        android:id="@+id/switch1"
+        android:id="@+id/modeSwitch"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="48dp"
         android:layout_marginBottom="7dp"
         android:text="Switch"
         opencv:layout_constraintBottom_toTopOf="@+id/button_startRecord"
-        opencv:layout_constraintEnd_toEndOf="parent" />
+        opencv:layout_constraintEnd_toEndOf="parent"
+        android:elevation="3dp"/>
 
     <SeekBar
         android:id="@+id/CameraZoomControls"
         android:layout_width="420dp"
         android:layout_height="28dp"
-        tools:layout_editor_absoluteX="64dp"
-        tools:layout_editor_absoluteY="157dp" />
+        android:layout_marginStart="48dp"
+        android:layout_marginBottom="15dp"
+        opencv:layout_constraintBottom_toTopOf="@+id/trackerSpinner"
+        opencv:layout_constraintStart_toStartOf="parent"
+        android:elevation="3dp"/>
+
+    <View
+        android:id="@+id/SensorView"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="35dp"
+        android:layout_marginEnd="35dp"
+        android:background="@android:color/transparent"
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintEnd_toEndOf="parent"
+        opencv:layout_constraintHorizontal_bias="0.0"
+        opencv:layout_constraintStart_toStartOf="parent"
+        opencv:layout_constraintTop_toTopOf="parent"
+        opencv:layout_constraintVertical_bias="0.0" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
