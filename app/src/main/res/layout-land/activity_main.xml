@@ -101,7 +101,7 @@
         opencv:layout_constraintStart_toStartOf="parent"
         android:elevation="3dp"/>
 
-    <View
+    <com.jackyyu0918.finalyearproject_54820425.DragRegionView
         android:id="@+id/SensorView"
         android:layout_width="0dp"
         android:layout_height="wrap_content"

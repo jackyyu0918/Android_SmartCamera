@@ -5,7 +5,6 @@ import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Mat;
-import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
@@ -26,16 +25,16 @@ import org.opencv.tracking.TrackerTLD;
 import android.Manifest;
 import android.app.Activity;
 import android.content.pm.PackageManager;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
 import android.util.Log;
 import android.view.MenuItem;
-import android.view.MotionEvent;
-import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
-import android.view.Window;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -63,8 +62,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     //--------------------My code-----------------//
     //sensor view object
-    private View SensorView;
-
+    private DragRegionView DragRegionView;
 
     //Matrix
     private Mat mRgba;
@@ -111,7 +109,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     //Media recorder
     public MediaRecorder recorder = new MediaRecorder();
     private boolean isRecording = false;
-    private boolean isMediaRecorderInit = false;
 
     //--------------------------------------------------------------------------//
 
@@ -185,17 +182,26 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         trackerCoordinate = new Point(700,200);
         trackerSize = new Point(300,300);
         greenColorOutline = new Scalar(0, 255, 0, 255);
-
          */
 
 
         //new 2:1 size
+        /*
         trackerCoordinate = new Point(1000,200);
-        trackerSize = new Point(500,200);
+        trackerSize = new Point(210,300);
         greenColorOutline = new Scalar(0, 255, 0, 255);
 
         roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
         roiRect = new Rect((int)trackerCoordinate.x,(int)trackerCoordinate.y,(int)trackerSize.x,(int)trackerSize.y);
+         */
+
+        greenColorOutline = new Scalar(0, 255, 0, 255);
+        trackerCoordinate = new Point();
+        trackerSize = new Point();
+
+        roiRect2d = new Rect2d();
+        roiRect = new Rect();
+
 
         //tracker creation, base on drop down menu selection
         //currentTrackerType = "KCF";
@@ -234,23 +240,33 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 //firstTracker = TrackerKCF.create();
 
                 //own function, create proper tracker
-                createTracker(currentTrackerType);
+                if (DragRegionView.points[0] == null){
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Please drag on target object.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+                } else {
+                    createTracker(currentTrackerType);
 
-                //tracker initialization
-                objectTracker.init(mGray, roiRect2d);
-                //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
-                isInitTracker = true;
+                    //get user drag result
+                    calculateRectInfo(DragRegionView.points);
 
-                //Tracker message
-                Toast toast1 = Toast.makeText(MainActivity.this,
-                        "Current tracker: " + objectTracker.getClass(), Toast.LENGTH_LONG);
-                //顯示Toast
-                toast1.show();
+                    //tracker initialization
+                    objectTracker.init(mGray, roiRect2d);
+                    //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
+                    isInitTracker = true;
 
-                Toast toast2 = Toast.makeText(MainActivity.this,
-                        "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
-                //顯示Toast
-                toast2.show();
+                    //Tracker message
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Current tracker: " + objectTracker.getClass(), Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+
+                    Toast toast2 = Toast.makeText(MainActivity.this,
+                            "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast2.show();
+                }
             }
         });
 
@@ -283,7 +299,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 objectTracker = null;
 
                 //new 2:1 size
-                resetTraacker();
+                resetTracker();
+                DragRegionView.isReset = true;
+                DragRegionView.invalidate();
+                //testing****
+                //System.out.println("Coordinate: " + DragRegionView.points[0] + DragRegionView.points[1] + DragRegionView.points[2] + DragRegionView.points[3]);
             }
         });
 
@@ -323,8 +343,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         });
 
         //Sensor View at top
-        SensorView = findViewById(R.id.SensorView);
-        SensorView.setOnTouchListener(handleDragTouch);
+        DragRegionView = (DragRegionView) findViewById(R.id.SensorView);
     }
 
     @Override
@@ -398,7 +417,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             System.out.println("Tracker update result: " + objectTracker.update(mGray, roiRect2d));
 
             //make sure target object is inside the screen
-            if(roiRect2d.x+ roiRect2d.width > 1920 || roiRect2d.x < 0 || roiRect2d.y < 0 || roiRect2d.y+ roiRect2d.height > 960 ) {
+            if(roiRect2d.x+ roiRect2d.width > 3000 || roiRect2d.x < 0 || roiRect2d.y < 0 || roiRect2d.y+ roiRect2d.height > 1080) {
                 System.out.println("Tracking Failed, target object fall outside screen");
 
             } else {
@@ -407,6 +426,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
                 if(roiRect2d.height >= roiRect2d.width) {
                     //Optimized aspect ratio for video recording (2:1)
+                    System.out.println("Before crash: " + (int) (roiRect2d.y) + ", " + (int) (roiRect2d.y + roiRect2d.height) + ", " + (int) (roiRect2d.x + (roiRect2d.width/2) - roiRect2d.height) + ", " + (int) (roiRect2d.x + (roiRect2d.width/2) + roiRect2d.height));
                     optimizeObjectMat = mRgba.submat((int) (roiRect2d.y), (int) (roiRect2d.y + roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width/2) - roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width/2) + roiRect2d.height));
                 } else if(roiRect2d.height < roiRect2d.width){
                     //Optimized aspect ratio for video recording (2:1)
@@ -435,10 +455,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 }
             }
 
+            Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
         }
 
         //draw rectangle using Rect roiRect
-        Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
+        //Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
 
         return mRgba;
     }
@@ -542,7 +563,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
-    public void resetTraacker(){
+    public void resetTracker(){
         roiRect.x = (int)trackerCoordinate.x;
         roiRect.y = (int)trackerCoordinate.y;
         roiRect.width = (int)trackerSize.x;
@@ -552,19 +573,24 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         roiRect2d.y = trackerCoordinate.y;
         roiRect2d.width = trackerSize.x;
         roiRect2d.height = trackerSize.y;
-    }
 
+
+        //without value, blank rect
+        //roiRect = null;
+        //roiRect2d = null;
+    }
+    /*
     //Top view for sensoring
     private View.OnTouchListener handleDragTouch = new View.OnTouchListener() {
 
         @Override
         public boolean onTouch(View v, MotionEvent event) {
 
-            int x = (int) event.getX();
-            int y = (int) event.getY();
+            int touch_x = (int) event.getX();
+            int touch_y = (int) event.getY();
 
             Toast toast1 = Toast.makeText(MainActivity.this,
-                    "X: " + x + ", Y: " + y, Toast.LENGTH_LONG);
+                    "X: " + touch_x + ", Y: " + touch_y, Toast.LENGTH_LONG);
             //顯示Toast
             toast1.show();
 
@@ -573,7 +599,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     Log.i("TAG", "touched down");
                     break;
                 case MotionEvent.ACTION_MOVE:
-                    Log.i("TAG", "moving: (" + x + ", " + y + ")");
+                    Log.i("TAG", "moving: (" + touch_x + ", " + touch_y + ")");
                     break;
                 case MotionEvent.ACTION_UP:
                     Log.i("TAG", "touched up");
@@ -583,4 +609,37 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             return true;
         }
     };
+
+     */
+
+    //Set rectangle info from drag class
+    public void calculateRectInfo(android.graphics.Point[] points){
+            /*
+            trackerCoordinate = new Point(points[0].x+40,points[0].y+20);
+            trackerSize = new Point((points[2].x+40) - (points[0].x+40),(points[2].y+20) - (points[0].y+20));
+
+            roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
+            roiRect = new Rect((int)trackerCoordinate.x,(int)trackerCoordinate.y,(int)trackerSize.x,(int)trackerSize.y);
+             */
+
+            trackerCoordinate.x = points[0].x+40;
+            trackerCoordinate.y = points[0].y+20;
+            trackerSize.x = ((points[2].x+40) - (points[0].x+40));
+            trackerSize.y = ((points[2].y+20) - (points[0].y+20));
+
+            roiRect2d.x = trackerCoordinate.x;
+            roiRect2d.y = trackerCoordinate.y;
+            roiRect2d.width = trackerSize.x;
+            roiRect2d.height =trackerSize.y;
+
+            roiRect.x = (int)trackerCoordinate.x;
+            roiRect.y =  (int)trackerCoordinate.y;
+            roiRect.width = (int)trackerSize.x;
+            roiRect.height = (int)trackerSize.y;
+
+            Toast toast1 = Toast.makeText(MainActivity.this,
+                    "Press start to track object", Toast.LENGTH_LONG);
+            //顯示Toast
+            toast1.show();
+    }
 }
