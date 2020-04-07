@@ -266,6 +266,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                             "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
                     //顯示Toast
                     toast2.show();
+
+                    DragRegionView.isReset = true;
+                    DragRegionView.invalidate();
+
+                    Toast toast3 = Toast.makeText(MainActivity.this,
+                            "Current tracker size: " + roiRect.width + "x" + roiRect.height, Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast3.show();
                 }
             }
         });
