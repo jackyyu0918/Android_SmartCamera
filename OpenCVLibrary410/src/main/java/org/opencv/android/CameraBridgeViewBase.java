@@ -61,6 +61,9 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
     public static final int RGBA = 1;
     public static final int GRAY = 2;
 
+    private Canvas canvasOG;
+    private Canvas canvas;
+
 
     //Media recorder
     public MediaRecorder mRecorder;
@@ -79,12 +82,12 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         }
     }
 
-
     //modified
     protected void deliverAndDrawFrame(CvCameraViewFrame frame) {
         Mat modified;
 
         if (mListener != null) {
+            //Get the frame from onCameraFrame
             modified = mListener.onCameraFrame(frame);
         } else {
             modified = frame.rgba();
@@ -93,6 +96,7 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
         boolean bmpValid = true;
         if (modified != null) {
             try {
+                //mCacheBitmap = convert from Matrix to Bitmap -Me
                 Utils.matToBitmap(modified, mCacheBitmap);
             } catch(Exception e) {
                 Log.e(TAG, "Mat type: " + modified);
@@ -104,12 +108,14 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
 
         if (bmpValid && mCacheBitmap != null) {
             //OG part
-            Canvas canvasOG = getHolder().lockCanvas();
+            canvasOG = getHolder().lockCanvas();
             if (canvasOG != null) {
                 canvasOG.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
+
                 if (BuildConfig.DEBUG)
                     Log.d(TAG, "mStretch value: " + mScale);
 
+                //Original part
                 if (mScale != 0) {
                     canvasOG.drawBitmap(mCacheBitmap, new Rect(0,0,mCacheBitmap.getWidth(), mCacheBitmap.getHeight()),
                             new Rect((int)((canvasOG.getWidth() - mScale*mCacheBitmap.getWidth()) / 2),
@@ -132,11 +138,10 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
             }
 
             //Media recorder
-            Canvas canvas;
             if (mRecorder != null) {
                 canvas = mSurface.lockCanvas(null);
-
                 canvas.drawColor(0, android.graphics.PorterDuff.Mode.CLEAR);
+
                 Log.d(TAG, "mStretch value: " + mScale);
 
                 if (mScale != 0) {
@@ -154,7 +159,6 @@ public abstract class CameraBridgeViewBase extends SurfaceView implements Surfac
                 }
                 mSurface.unlockCanvasAndPost(canvas);
             }
-
         }
     }
 

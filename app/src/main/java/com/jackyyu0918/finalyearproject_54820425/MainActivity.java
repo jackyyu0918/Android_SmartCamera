@@ -1,11 +1,34 @@
 package com.jackyyu0918.finalyearproject_54820425;
 
+import android.Manifest;
+import android.app.Activity;
+import android.content.pm.PackageManager;
+import android.media.MediaRecorder;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.util.Log;
+import android.view.MenuItem;
+import android.view.SurfaceView;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.SeekBar;
+import android.widget.Spinner;
+import android.widget.Toast;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
+import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Mat;
-import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Rect2d;
@@ -22,35 +45,13 @@ import org.opencv.tracking.TrackerMOSSE;
 import org.opencv.tracking.TrackerMedianFlow;
 import org.opencv.tracking.TrackerTLD;
 
-import android.Manifest;
-import android.app.Activity;
-import android.content.pm.PackageManager;
-import android.graphics.Canvas;
-import android.graphics.Color;
-import android.graphics.PorterDuff;
-import android.media.MediaRecorder;
-import android.os.Bundle;
-import android.os.Environment;
-import android.util.Log;
-import android.view.MenuItem;
-import android.view.SurfaceView;
-import android.view.View;
-import android.view.WindowManager;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.SeekBar;
-import android.widget.Spinner;
-import android.widget.Toast;
-
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+
+//TensorflowLite library
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "OCVSample::Activity";
@@ -109,6 +110,13 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     //Media recorder
     public MediaRecorder recorder = new MediaRecorder();
     private boolean isRecording = false;
+
+    //TensorFlowLite interpreter
+    private int[] rgbBytes;
+
+    //Thread handler
+    private Handler handler;
+    private HandlerThread handlerThread;
 
     //--------------------------------------------------------------------------//
 
@@ -352,6 +360,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //Sensor View at top
         DragRegionView = (DragRegionView) findViewById(R.id.SensorView);
+
+        //TensorFlowLite in
     }
 
     @Override
@@ -373,6 +383,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             Log.d(TAG, "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
+
+        //Multi Thread issue -Me
+        handlerThread = new HandlerThread("inference");
+        handlerThread.start();
+        handler = new Handler(handlerThread.getLooper());
     }
 
     public void onDestroy() {
@@ -469,6 +484,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         //draw rectangle using Rect roiRect
         //Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
 
+        //========Object detection=========//
+        rgbBytes = new int[rows*cols];
+
+        //Decided the previewSize
+        //onPreviewSizeChosen(new android.util.Size(cols, rows), 270);
+
         return mRgba;
     }
 
@@ -514,17 +535,21 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     public void prepareRecorder(){
         //Success for start,but shut down on stop
+
+        //Video source is from the surface
+        //Everything draw on the surface will be recorder by recorder
         recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
         recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
 
+        //Store the video with time stamp
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
 
         String currentDateandTime = sdf.format(new Date());
 
         recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"/FYP/" + currentDateandTime + ".mp4");
         recorder.setVideoEncodingBitRate(1000000);
-        recorder.setVideoFrameRate(30);
+        recorder.setVideoFrameRate(60);
         recorder.setVideoSize(mOpenCvCameraView.getWidth(), mOpenCvCameraView.getHeight());
         recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
         recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
@@ -538,6 +563,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         } catch (IOException e) {
             Log.e("debug mediarecorder", "not prepare IOException");
         }
+
+        //Initialized the mRecorder in CameraBridgeViewBase and make a new surface for recording!
+        //Everything draw on that
         mOpenCvCameraView.setRecorder(recorder);
 
         //Only Audio
@@ -650,4 +678,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             //顯示Toast
             toast1.show();
     }
+
+
 }
