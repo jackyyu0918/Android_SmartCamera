@@ -299,8 +299,11 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
 
     @Override
     public void onPreviewFrame(byte[] frame, Camera arg1) {
-        if (BuildConfig.DEBUG)
+        if (BuildConfig.DEBUG){
             Log.d(TAG, "Preview Frame received. Frame size: " + frame.length);
+            //System.out.println("Hello!Iam here, camera object exist: " + arg1);
+            //System.out.println("Checking camera: " + mCamera) ;
+        }
         synchronized (this) {
             mFrameChain[mChainIdx].put(0, 0, frame);
             mCameraFrameReady = true;
@@ -375,5 +378,15 @@ public class JavaCameraView extends CameraBridgeViewBase implements PreviewCallb
             } while (!mStopThread);
             Log.d(TAG, "Finish processing thread");
         }
+    }
+
+    //customized
+    //getCamera
+    public Camera getmCamera() {
+        return mCamera;
+    }
+
+    public byte[] getmBuffer() {
+        return mBuffer;
     }
 }

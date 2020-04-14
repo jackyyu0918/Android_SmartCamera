@@ -2,24 +2,43 @@ package com.jackyyu0918.finalyearproject_54820425;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.Fragment;
+import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.hardware.Camera;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.Image;
 import android.media.MediaRecorder;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.MenuItem;
+import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CompoundButton;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -47,9 +66,16 @@ import org.opencv.tracking.TrackerTLD;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
+
+import com.jackyyu0918.finalyearproject_54820425.tflite.*;
+import com.jackyyu0918.finalyearproject_54820425.env.*;
+import com.jackyyu0918.finalyearproject_54820425.tracking.MultiBoxTracker;
 
 //TensorflowLite library
 
@@ -90,21 +116,21 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
 
     //Mode switching
-        //false = small window
+    //false = small window
     private boolean isFullScreen = false;
 
     //button
-        // for init tracker
+    // for init tracker
     private Button button_startTrack;
     private String currentTrackerType;
 
-        // for reset tracker
+    // for reset tracker
     private Button button_resetTrack;
 
-        // for full view tracking
+    // for full view tracking
     private Button button_fullView;
 
-        // for start recording
+    // for start recording
     private Button button_startRecord;
 
     //Media recorder
@@ -112,11 +138,74 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private boolean isRecording = false;
 
     //TensorFlowLite interpreter
-    private int[] rgbBytes;
+        //Camera Activity
+    private int[] rgbBytes = null;
+    private boolean isProcessingFrame = false;
+
+    protected int previewWidth = 0;
+    protected int previewHeight = 0;
+    private boolean useCamera2API;
+    private byte[][] yuvBytes = new byte[3][];
+    private int yRowStride;
 
     //Thread handler
     private Handler handler;
     private HandlerThread handlerThread;
+
+    //Work for thread, defined at the onPreviewFrame
+    private Runnable postInferenceCallback;
+    private Runnable imageConverter;
+
+    private SwitchCompat apiSwitchCompat;
+
+        //Detector Activity
+    private static final Logger LOGGER = new Logger();
+
+    // Configuration values for the prepackaged SSD model.
+    private static final int TF_OD_API_INPUT_SIZE = 300;
+    private static final boolean TF_OD_API_IS_QUANTIZED = true;
+    //model name
+    private static final String TF_OD_API_MODEL_FILE = "detect.tflite";
+    private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/labelmap.txt";
+    private static final DetectorMode MODE = DetectorMode.TF_OD_API;
+    // Minimum detection confidence to track a detection. 0.5/50%
+    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
+    private static final boolean MAINTAIN_ASPECT = false;
+
+    //Hard coded size!? it affect the size of preview, which is the same output as my project
+    //private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
+    //phone with 2:1 apsect ratio
+    private static final android.util.Size DESIRED_PREVIEW_SIZE = new android.util.Size(1920, 960);
+    private static final boolean SAVE_PREVIEW_BITMAP = false;
+    private static final float TEXT_SIZE_DIP = 10;
+
+    //Sensor Orientation
+    private Integer sensorOrientation;
+
+    private Classifier detector;
+
+    private long lastProcessingTimeMs;
+    private Bitmap rgbFrameBitmap = null;
+    private Bitmap croppedBitmap = null;
+    private Bitmap cropCopyBitmap = null;
+
+    private boolean computingDetection = false;
+
+    private long timestamp = 0;
+
+    private Matrix frameToCropTransform;
+    private Matrix cropToFrameTransform;
+
+    private MultiBoxTracker tracker;
+    private BorderedText borderedText;
+
+    //
+    private Camera camera;
+    private byte[] bytes;
+
+    private boolean debug = false;
+    //private SwitchCompat apiSwitchCompat;
+
 
     //--------------------------------------------------------------------------//
 
@@ -198,7 +287,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         trackerCoordinate = new Point(1000,200);
         trackerSize = new Point(210,300);
         greenColorOutline = new Scalar(0, 255, 0, 255);
-
         roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
         roiRect = new Rect((int)trackerCoordinate.x,(int)trackerCoordinate.y,(int)trackerSize.x,(int)trackerSize.y);
          */
@@ -209,7 +297,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         roiRect2d = new Rect2d();
         roiRect = new Rect();
-
 
         //tracker creation, base on drop down menu selection
         //currentTrackerType = "KCF";
@@ -238,7 +325,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         });
 
         //button onClick listener
-            //start button
+        //start button
         button_startTrack = findViewById(R.id.button_startTrack);
         button_startTrack.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -286,7 +373,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             }
         });
 
-            //switch mode button
+        //switch mode button
         button_fullView = findViewById(R.id.button_fullView);
         button_fullView.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -305,7 +392,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             }
         });
 
-            //reset button
+        //reset button
         button_resetTrack = findViewById(R.id.button_resetTracker);
         button_resetTrack.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -323,7 +410,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             }
         });
 
-            //start recording button
+        //start recording button
         //start button
         button_startRecord = findViewById(R.id.button_startRecord);
         button_startRecord.setOnClickListener(new View.OnClickListener() {
@@ -367,6 +454,15 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     @Override
     public void onPause()
     {
+        handlerThread.quitSafely();
+        try {
+            handlerThread.join();
+            handlerThread = null;
+            handler = null;
+        } catch (final InterruptedException e) {
+            System.out.println(e);
+        }
+
         super.onPause();
         if (mOpenCvCameraView != null)
             mOpenCvCameraView.disableView();
@@ -383,6 +479,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             Log.d(TAG, "OpenCV library found inside package. Using it!");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
+
+
 
         //Multi Thread issue -Me
         handlerThread = new HandlerThread("inference");
@@ -406,6 +504,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         targetObjectMat = new Mat();
         zoomWindowMat = new Mat();
         optimizeObjectMat = new Mat();
+
+        //TensorFlowLite
+        camera = mOpenCvCameraView.getmCamera();
+        bytes = mOpenCvCameraView.getmBuffer();
     }
 
     public void onCameraViewStopped() {
@@ -414,6 +516,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
+        //Basic Info
         mRgba = inputFrame.rgba();
         mGray = inputFrame.gray();
 
@@ -436,7 +539,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
             System.out.println("x,y,width,height: " + (int) roiRect2d.x + ", "+ (int) roiRect2d.y + ", "+ (int) roiRect2d.width + ", "+ (int) roiRect2d.height);
 
+
             //Update tracker information to roiRect2d
+            //Why not multi thread, high latency
             System.out.println("Tracker update result: " + objectTracker.update(mGray, roiRect2d));
 
             //make sure target object is inside the screen
@@ -456,7 +561,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     optimizeObjectMat = mRgba.submat((int)(roiRect2d.y + (roiRect2d.height/2) - roiRect2d.width/4), (int)((roiRect2d.y + (roiRect2d.height/2) - roiRect2d.width/4) + roiRect2d.width/2), (int)(roiRect2d.x), (int)(roiRect2d.x+ roiRect2d.width));
                 }
 
-                    // Small window preview mode
+                // Small window preview mode
                 if(isFullScreen == false){
                     //top-left corner of mRgba
                     zoomWindowMat = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
@@ -465,7 +570,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     //Imgproc.resize(targetObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
                     Imgproc.resize(optimizeObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
 
-                // Full screen mode (for video recording)
+                    // Full screen mode (for video recording)
                 } else {
                     mRgba.copyTo(testMat);
 
@@ -479,19 +584,74 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             }
 
             Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
+            Imgproc.putText(mRgba,"Target",new Point(roiRect.x,roiRect.y),1,3,greenColorOutline);
         }
 
         //draw rectangle using Rect roiRect
         //Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
 
-        //========Object detection=========//
-        rgbBytes = new int[rows*cols];
+        //Testing
+        //System.out.println("Camera size " + mRgba.size());
 
-        //Decided the previewSize
-        //onPreviewSizeChosen(new android.util.Size(cols, rows), 270);
+
+        //================Object detection================//
+        //CameraActivity
+        if (isProcessingFrame) {
+            LOGGER.w("Dropping frame!");
+            return mRgba;
+        }
+
+        try {
+            // Initialize the storage bitmaps once when the resolution is known.
+            //Set up rgbBytes with camera size
+            //If already run setup, no need to run this setup
+            if (rgbBytes == null) {
+                Camera.Size previewSize = camera.getParameters().getPreviewSize();
+                previewHeight = previewSize.height;
+                previewWidth = previewSize.width;
+                rgbBytes = new int[previewWidth * previewHeight];
+
+                //onPreviewSizeChosen
+                onPreviewSizeChosen(new android.util.Size(previewSize.width, previewSize.height), 90);
+            }
+        } catch (final Exception e) {
+            LOGGER.e(e, "Exception!");
+            return mRgba;
+        }
+
+        isProcessingFrame = true;
+        yuvBytes[0] = bytes;
+        yRowStride = previewWidth;//Debug
+
+
+        // Convert byes to rbgBytes
+        imageConverter =
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        //Store
+                        ImageUtils.convertYUV420SPToARGB8888(bytes, previewWidth, previewHeight, rgbBytes);
+                    }
+                };
+
+
+        postInferenceCallback =
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        camera.addCallbackBuffer(bytes);
+                        isProcessingFrame = false;
+                    }
+                };
+
+        //Process Image ()
+        processImage();
+
 
         return mRgba;
     }
+
+    //================End of onCameraPreview=========
 
     //my own function
     public void createTracker(String trackerType){
@@ -618,18 +778,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     /*
     //Top view for sensoring
     private View.OnTouchListener handleDragTouch = new View.OnTouchListener() {
-
         @Override
         public boolean onTouch(View v, MotionEvent event) {
-
             int touch_x = (int) event.getX();
             int touch_y = (int) event.getY();
-
             Toast toast1 = Toast.makeText(MainActivity.this,
                     "X: " + touch_x + ", Y: " + touch_y, Toast.LENGTH_LONG);
             //顯示Toast
             toast1.show();
-
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     Log.i("TAG", "touched down");
@@ -641,11 +797,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     Log.i("TAG", "touched up");
                     break;
             }
-
             return true;
         }
     };
-
      */
 
     //Set rectangle info from drag class
@@ -653,31 +807,437 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             /*
             trackerCoordinate = new Point(points[0].x+40,points[0].y+20);
             trackerSize = new Point((points[2].x+40) - (points[0].x+40),(points[2].y+20) - (points[0].y+20));
-
             roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
             roiRect = new Rect((int)trackerCoordinate.x,(int)trackerCoordinate.y,(int)trackerSize.x,(int)trackerSize.y);
              */
 
-            trackerCoordinate.x = points[0].x+40;
-            trackerCoordinate.y = points[0].y+20;
-            trackerSize.x = ((points[2].x+40) - (points[0].x+40));
-            trackerSize.y = ((points[2].y+20) - (points[0].y+20));
+        trackerCoordinate.x = points[0].x+40;
+        trackerCoordinate.y = points[0].y+20;
+        trackerSize.x = ((points[2].x+40) - (points[0].x+40));
+        trackerSize.y = ((points[2].y+20) - (points[0].y+20));
 
-            roiRect2d.x = trackerCoordinate.x;
-            roiRect2d.y = trackerCoordinate.y;
-            roiRect2d.width = trackerSize.x;
-            roiRect2d.height =trackerSize.y;
+        roiRect2d.x = trackerCoordinate.x;
+        roiRect2d.y = trackerCoordinate.y;
+        roiRect2d.width = trackerSize.x;
+        roiRect2d.height =trackerSize.y;
 
-            roiRect.x = (int)trackerCoordinate.x;
-            roiRect.y =  (int)trackerCoordinate.y;
-            roiRect.width = (int)trackerSize.x;
-            roiRect.height = (int)trackerSize.y;
+        roiRect.x = (int)trackerCoordinate.x;
+        roiRect.y =  (int)trackerCoordinate.y;
+        roiRect.width = (int)trackerSize.x;
+        roiRect.height = (int)trackerSize.y;
 
-            Toast toast1 = Toast.makeText(MainActivity.this,
-                    "Press start to track object", Toast.LENGTH_LONG);
-            //顯示Toast
-            toast1.show();
+        Toast toast1 = Toast.makeText(MainActivity.this,
+                "Press start to track object", Toast.LENGTH_LONG);
+        //顯示Toast
+        toast1.show();
     }
 
+    //===========TensorFlowLite==========//
+        //CameraActivity
+    protected int[] getRgbBytes() {
+        imageConverter.run();
+        return rgbBytes;
+    }
+
+        //DetectorActivity
+    private enum DetectorMode {
+        TF_OD_API;
+    }
+
+    protected synchronized void runInBackground(final Runnable r) {
+        if (handler != null) {
+            handler.post(r);
+        }
+    }
+
+    //Permission issue, solved
+    /*
+    @Override
+    public void onRequestPermissionsResult(
+            final int requestCode, final String[] permissions, final int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSIONS_REQUEST) {
+            if (allPermissionsGranted(grantResults)) {
+                setFragment();
+            } else {
+                requestPermission();
+            }
+        }
+    }
+
+    private static boolean allPermissionsGranted(final int[] grantResults) {
+        for (int result : grantResults) {
+            if (result != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean hasPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return true;
+        }
+    }
+
+    private void requestPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (shouldShowRequestPermissionRationale(PERMISSION_CAMERA)) {
+                Toast.makeText(
+                        CameraActivity.this,
+                        "Camera permission is required for this demo",
+                        Toast.LENGTH_LONG)
+                        .show();
+            }
+            requestPermissions(new String[] {PERMISSION_CAMERA}, PERMISSIONS_REQUEST);
+        }
+    }
+     */
+
+    // Returns true if the device supports the required hardware level, or better.
+    private boolean isHardwareLevelSupported(
+            CameraCharacteristics characteristics, int requiredLevel) {
+        int deviceLevel = characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
+        if (deviceLevel == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY) {
+            return requiredLevel == deviceLevel;
+        }
+        // deviceLevel is not LEGACY, can use numerical sort
+        return requiredLevel <= deviceLevel;
+    }
+
+    private String chooseCamera() {
+        final CameraManager manager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
+        try {
+            for (final String cameraId : manager.getCameraIdList()) {
+                final CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+                // We don't use a front facing camera in this sample.
+                final Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                    continue;
+                }
+
+                final StreamConfigurationMap map =
+                        characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+
+                if (map == null) {
+                    continue;
+                }
+
+                // Fallback to camera1 API for internal cameras that don't have full support.
+                // This should help with legacy situations where using the camera2 API causes
+                // distorted or otherwise broken previews.
+                useCamera2API =
+                        (facing == CameraCharacteristics.LENS_FACING_EXTERNAL)
+                                || isHardwareLevelSupported(
+                                characteristics, CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL);
+                LOGGER.i("Camera API lv2?: %s", useCamera2API);
+                return cameraId;
+            }
+        } catch (CameraAccessException e) {
+            LOGGER.e(e, "Not allowed to access camera");
+        }
+
+        return null;
+    }
+
+    //Set Fragment, connect image to the canvas
+    /*
+    protected void setFragment() {
+        String cameraId = chooseCamera();
+
+        Fragment fragment;
+        if (useCamera2API) {
+            CameraConnectionFragment camera2Fragment =
+                    CameraConnectionFragment.newInstance(
+                            new CameraConnectionFragment.ConnectionCallback() {
+                                @Override
+                                public void onPreviewSizeChosen(final android.util.Size size, final int rotation) {
+                                    previewHeight = size.getHeight();
+                                    previewWidth = size.getWidth();
+                                    CameraActivity.this.onPreviewSizeChosen(size, rotation);
+                                }
+                            },
+                            this,
+                            getLayoutId(),
+                            getDesiredPreviewFrameSize());
+
+            camera2Fragment.setCamera(cameraId);
+            fragment = camera2Fragment;
+        } else {
+            fragment =
+                    new LegacyCameraConnectionFragment(this, getLayoutId(), getDesiredPreviewFrameSize());
+        }
+
+        getFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
+    }
+     */
+
+    protected void fillBytes(final Image.Plane[] planes, final byte[][] yuvBytes) {
+        // Because of the variable row stride it's not possible to know in
+        // advance the actual necessary dimensions of the yuv planes.
+        for (int i = 0; i < planes.length; ++i) {
+            final ByteBuffer buffer = planes[i].getBuffer();
+            if (yuvBytes[i] == null) {
+                LOGGER.d("Initializing buffer %d at size %d", i, buffer.capacity());
+                yuvBytes[i] = new byte[buffer.capacity()];
+            }
+            buffer.get(yuvBytes[i]);
+        }
+    }
+
+    public boolean isDebug() {
+        return debug;
+    }
+
+    protected void readyForNextImage() {
+        if (postInferenceCallback != null) {
+            postInferenceCallback.run();
+        }
+    }
+
+    protected int getScreenOrientation() {
+        switch (getWindowManager().getDefaultDisplay().getRotation()) {
+            case Surface.ROTATION_270:
+                return 270;
+            case Surface.ROTATION_180:
+                return 180;
+            case Surface.ROTATION_90:
+                return 90;
+            default:
+                return 0;
+        }
+    }
+
+    //API Switch, ignore
+    /*
+    @Override
+    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+        setUseNNAPI(isChecked);
+        if (isChecked) apiSwitchCompat.setText("NNAPI");
+        else apiSwitchCompat.setText("TFLITE");
+    }
+
+     */
+
+    /*
+    //Thread function on click, ignore
+    @Override
+    public void onClick(View v) {
+        if (v.getId() == R.id.plus) {
+            String threads = threadsTextView.getText().toString().trim();
+            int numThreads = Integer.parseInt(threads);
+            if (numThreads >= 9) return;
+            numThreads++;
+            threadsTextView.setText(String.valueOf(numThreads));
+            setNumThreads(numThreads);
+        } else if (v.getId() == R.id.minus) {
+            String threads = threadsTextView.getText().toString().trim();
+            int numThreads = Integer.parseInt(threads);
+            if (numThreads == 1) {
+                return;
+            }
+            numThreads--;
+            threadsTextView.setText(String.valueOf(numThreads));
+            setNumThreads(numThreads);
+        }
+    }
+     */
+
+    /*
+    protected void showFrameInfo(String frameInfo) {
+        frameValueTextView.setText(frameInfo);
+    }
+
+    protected void showCropInfo(String cropInfo) {
+        cropValueTextView.setText(cropInfo);
+    }
+
+    protected void showInference(String inferenceTime) {
+        inferenceTimeTextView.setText(inferenceTime);
+    }
+     */
+
+    protected void processImage() {
+
+        ++timestamp;
+        final long currTimestamp = timestamp;
+        //trackingOverlay.postInvalidate();
+
+        // No mutex needed as this method is not reentrant.
+        if (computingDetection) {
+            readyForNextImage();
+            return;
+        }
+        computingDetection = true;
+        LOGGER.i("Preparing image " + currTimestamp + " for detection in bg thread.");
+
+        rgbFrameBitmap.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight);
+
+        readyForNextImage();
+
+
+        //將白紙鋪到畫布Canvas上
+        final Canvas canvas = new Canvas(croppedBitmap);
+
+        //
+        canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
+        // For examining the actual TF input.
+        if (SAVE_PREVIEW_BITMAP) {
+            ImageUtils.saveBitmap(croppedBitmap);
+        }
+
+        runInBackground(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        LOGGER.i("Running detection on image " + currTimestamp);
+                        final long startTime = SystemClock.uptimeMillis();
+                        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+                        lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
+
+                        cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
+                        final Canvas canvas = new Canvas(cropCopyBitmap);
+                        final Paint paint = new Paint();
+                        paint.setColor(Color.RED);
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setStrokeWidth(2.0f);
+
+                        float minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
+                        switch (MODE) {
+                            case TF_OD_API:
+                                minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
+                                break;
+                        }
+
+                        final List<Classifier.Recognition> mappedRecognitions =
+                                new LinkedList<Classifier.Recognition>();
+
+                        //Draw Location of the rectangle, no need!!! I will draw it myself --Me
+                        //Keep the logic
+                        for (final Classifier.Recognition result : results) {
+                            final RectF location = result.getLocation();
+                            if (location != null && result.getConfidence() >= minimumConfidence) {
+                                System.out.println("result.getTitle(): " + result.getTitle());
+                                //Draw rectangle on the canvas, can be replace by our boundary
+                                canvas.drawRect(location, paint);
+
+                                cropToFrameTransform.mapRect(location);
+
+                                result.setLocation(location);
+                                mappedRecognitions.add(result);
+                            }
+                        }
+
+                        //tracker.trackResults(mappedRecognitions, currTimestamp);
+                        //trackingOverlay.postInvalidate();
+
+                        computingDetection = false;
+
+                        //Display value on screen
+            /*
+            runOnUiThread(
+                new Runnable() {
+                  @Override
+                  public void run() {
+                    showFrameInfo(previewWidth + "x" + previewHeight);
+                    showCropInfo(cropCopyBitmap.getWidth() + "x" + cropCopyBitmap.getHeight());
+                    showInference(lastProcessingTimeMs + "ms");
+                  }
+                });
+
+             */
+                    }
+                });
+    }
+
+    protected void onPreviewSizeChosen(final android.util.Size size, final int rotation) {
+
+    /*
+    //Text Size
+    final float textSizePx =
+        TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
+
+    //BorderText
+    borderedText = new BorderedText(textSizePx);
+    borderedText.setTypeface(Typeface.MONOSPACE);
+
+     */
+
+        //Tracker , can ignore!
+        //tracker = new MultiBoxTracker(this);
+
+
+        int cropSize = TF_OD_API_INPUT_SIZE;
+
+        try {
+            detector =
+                    TFLiteObjectDetectionAPIModel.create(
+                            getAssets(),
+                            TF_OD_API_MODEL_FILE,
+                            TF_OD_API_LABELS_FILE,
+                            TF_OD_API_INPUT_SIZE,
+                            TF_OD_API_IS_QUANTIZED);
+            cropSize = TF_OD_API_INPUT_SIZE;
+        } catch (final IOException e) {
+            e.printStackTrace();
+            LOGGER.e(e, "Exception initializing classifier!");
+            Toast toast =
+                    Toast.makeText(
+                            getApplicationContext(), "Classifier could not be initialized", Toast.LENGTH_SHORT);
+            toast.show();
+            finish();
+        }
+
+        previewWidth = size.getWidth();
+        previewHeight = size.getHeight();
+
+        sensorOrientation = rotation - getScreenOrientation();
+        LOGGER.i("Camera orientation relative to screen canvas: %d", sensorOrientation);
+
+        LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
+        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
+        croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888);
+
+        frameToCropTransform =
+                ImageUtils.getTransformationMatrix(
+                        previewWidth, previewHeight,
+                        cropSize, cropSize,
+                        sensorOrientation, MAINTAIN_ASPECT);
+
+        cropToFrameTransform = new Matrix();
+        frameToCropTransform.invert(cropToFrameTransform);
+
+        //trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
+
+    /*
+    trackingOverlay.addCallback(
+        new DrawCallback() {
+          @Override
+          public void drawCallback(final Canvas canvas) {
+            tracker.draw(canvas);
+            if (isDebug()) {
+              tracker.drawDebug(canvas);
+            }
+          }
+        });
+
+     */
+
+        //tracker.setFrameConfiguration(previewWidth, previewHeight, sensorOrientation);
+    }
+
+    //protected abstract int getLayoutId();
+
+    protected android.util.Size getDesiredPreviewFrameSize() {
+        return null;
+    }
+
+    //protected abstract void setNumThreads(int numThreads);
+
+    //protected abstract void setUseNNAPI(boolean isChecked);
 
 }
