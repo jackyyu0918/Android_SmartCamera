@@ -75,10 +75,12 @@
         android:layout_height="wrap_content"
         android:layout_marginEnd="48dp"
         android:layout_marginBottom="15dp"
+        android:elevation="3dp"
+        android:src="@drawable/recording_button"
         android:text="START RECORDING"
         opencv:layout_constraintBottom_toTopOf="@+id/button_fullView"
-        opencv:layout_constraintEnd_toEndOf="parent"
-        android:elevation="3dp"/>
+        opencv:layout_constraintEnd_toEndOf="parent" />
+        />
 
     <Switch
         android:id="@+id/modeSwitch"
@@ -114,6 +116,13 @@
         opencv:layout_constraintStart_toStartOf="parent"
         opencv:layout_constraintTop_toTopOf="parent"
         opencv:layout_constraintVertical_bias="0.0" />
+
+    <com.jackyyu0918.finalyearproject_54820425.customview.OverlayView
+        android:id="@+id/tracking_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_marginStart="35dp"
+        android:layout_marginEnd="35dp"/>
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

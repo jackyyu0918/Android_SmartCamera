@@ -63,7 +63,6 @@ public class Zoomcameraview extends JavaCameraView {
 
         boolean ret = super.initializeCamera(width, height);
 
-
         Camera.Parameters params = mCamera.getParameters();
 
         if(params.isZoomSupported())

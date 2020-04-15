@@ -136,13 +136,18 @@ public class MultiBoxTracker {
             (int) (multiplier * (rotated ? frameWidth : frameHeight)),
             sensorOrientation,
             false);
+
     for (final TrackedRecognition recognition : trackedObjects) {
       final RectF trackedPos = new RectF(recognition.location);
 
+      //Important step to convert target object's location to fit canvas format
       getFrameToCanvasMatrix().mapRect(trackedPos);
       boxPaint.setColor(recognition.color);
 
       float cornerSize = Math.min(trackedPos.width(), trackedPos.height()) / 8.0f;
+
+      //Processed rectangle location
+
       canvas.drawRoundRect(trackedPos, cornerSize, cornerSize, boxPaint);
 
       final String labelString =
@@ -153,6 +158,7 @@ public class MultiBoxTracker {
       // labelString);
       borderedText.drawText(
           canvas, trackedPos.left + cornerSize, trackedPos.top, labelString + "%", boxPaint);
+      System.out.println("Inside MultiBoxTracker's draw function: " + labelString + ", trackerPOS: " + trackedPos);
     }
   }
 

@@ -2,15 +2,14 @@ package com.jackyyu0918.finalyearproject_54820425;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.Fragment;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
@@ -18,13 +17,13 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.MediaRecorder;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.MenuItem;
 import android.view.Surface;
 import android.view.SurfaceView;
@@ -33,7 +32,6 @@ import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CompoundButton;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -73,11 +71,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 
+//TensorflowLite library
+import com.jackyyu0918.finalyearproject_54820425.customview.OverlayView;
 import com.jackyyu0918.finalyearproject_54820425.tflite.*;
 import com.jackyyu0918.finalyearproject_54820425.env.*;
 import com.jackyyu0918.finalyearproject_54820425.tracking.MultiBoxTracker;
-
-//TensorflowLite library
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "OCVSample::Activity";
@@ -87,9 +85,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private boolean              mIsJavaCamera = true;
     private MenuItem             mItemSwitchCamera = null;
 
-    //--------------------My code-----------------//
-    //sensor view object
+    //--------------------Class Field-----------------//
+    //View object
     private DragRegionView DragRegionView;
+    OverlayView trackingOverlay;
 
     //Matrix
     private Mat mRgba;
@@ -105,9 +104,13 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     //Tracker
     private Tracker objectTracker;
     private boolean isInitTracker = false;
+    //TensorFlow MultiBoxTracker
+    private MultiBoxTracker multiBoxTracker;
 
     private Rect2d roiRect2d;
     private Rect roiRect;
+    //Tracking object use rect
+    private Rect targetObjectRect;
 
     //Pre-defined size
     private Point trackerCoordinate;
@@ -137,7 +140,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     public MediaRecorder recorder = new MediaRecorder();
     private boolean isRecording = false;
 
-    //TensorFlowLite interpreter
+    //Switch for mode
+    //true = ManualMode (Drag action), false = Automatic mode (Object detection)
+    private boolean ManualMode = false;
+
+    //=================TensorFlowLite interpreter==================//
         //Camera Activity
     private int[] rgbBytes = null;
     private boolean isProcessingFrame = false;
@@ -170,6 +177,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final DetectorMode MODE = DetectorMode.TF_OD_API;
     // Minimum detection confidence to track a detection. 0.5/50%
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
+    //private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
     private static final boolean MAINTAIN_ASPECT = false;
 
     //Hard coded size!? it affect the size of preview, which is the same output as my project
@@ -196,7 +204,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
 
-    private MultiBoxTracker tracker;
     private BorderedText borderedText;
 
     //
@@ -204,10 +211,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private byte[] bytes;
 
     private boolean debug = false;
+
     //private SwitchCompat apiSwitchCompat;
 
 
-    //--------------------------------------------------------------------------//
+    //----------------------------end of class field----------------------------------//
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
@@ -249,11 +257,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         mOpenCvCameraView.setCvCameraViewListener(this);
          */
 
-        //zoom view setting
+        //Zoom view setting
         mOpenCvCameraView = (Zoomcameraview)findViewById(R.id.ZoomCameraView);
         mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
         mOpenCvCameraView.setZoomControl((SeekBar) findViewById(R.id.CameraZoomControls));
         mOpenCvCameraView.setCvCameraViewListener(this);
+
+        //Overlay view setting
+
 
         //Grant permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
@@ -297,6 +308,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         roiRect2d = new Rect2d();
         roiRect = new Rect();
+        //tracking rect
+        targetObjectRect = new Rect();
 
         //tracker creation, base on drop down menu selection
         //currentTrackerType = "KCF";
@@ -447,8 +460,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //Sensor View at top
         DragRegionView = (DragRegionView) findViewById(R.id.SensorView);
-
-        //TensorFlowLite in
     }
 
     @Override
@@ -505,15 +516,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         zoomWindowMat = new Mat();
         optimizeObjectMat = new Mat();
 
-        //TensorFlowLite
+        //Camera parameter
         camera = mOpenCvCameraView.getmCamera();
         bytes = mOpenCvCameraView.getmBuffer();
+
+        //Initialize tracker
+        multiBoxTracker = new MultiBoxTracker(this);
     }
 
     public void onCameraViewStopped() {
         mGray.release();
         mRgba.release();
     }
+
+    //===============onCameraPreiew=================//
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
         //Basic Info
@@ -524,7 +540,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         int rows = (int) sizeRgba.height;
         int cols = (int) sizeRgba.width;
 
-        //tracking section
+        //===============tracking section==============//
+        /*
         // if initialized tracker, start update the ROI
         if(isInitTracker){
 
@@ -586,14 +603,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
             Imgproc.putText(mRgba,"Target",new Point(roiRect.x,roiRect.y),1,3,greenColorOutline);
         }
+        */
 
-        //draw rectangle using Rect roiRect
-        //Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
+        //============End of normal tracking==============//
 
-        //Testing
-        //System.out.println("Camera size " + mRgba.size());
-
-
+        /*
         //================Object detection================//
         //CameraActivity
         if (isProcessingFrame) {
@@ -614,6 +628,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 //onPreviewSizeChosen
                 onPreviewSizeChosen(new android.util.Size(previewSize.width, previewSize.height), 90);
             }
+
         } catch (final Exception e) {
             LOGGER.e(e, "Exception!");
             return mRgba;
@@ -647,11 +662,16 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         //Process Image ()
         processImage();
 
+        //Return colorful Matrix to generate camera preview
+
+         */
+
+        //Imgproc.rectangle(mRgba, new Rect(786, 245, 1303-786, 663-245),greenColorOutline,2);
 
         return mRgba;
     }
 
-    //================End of onCameraPreview=========
+    //================End of onCameraPreview=========//
 
     //my own function
     public void createTracker(String trackerType){
@@ -693,6 +713,51 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
+    public void resetTracker(){
+        roiRect.x = (int)trackerCoordinate.x;
+        roiRect.y = (int)trackerCoordinate.y;
+        roiRect.width = (int)trackerSize.x;
+        roiRect.height = (int)trackerSize.y;
+
+        roiRect2d.x = trackerCoordinate.x;
+        roiRect2d.y = trackerCoordinate.y;
+        roiRect2d.width = trackerSize.x;
+        roiRect2d.height = trackerSize.y;
+
+
+        //without value, blank rect
+        //roiRect = null;
+        //roiRect2d = null;
+    }
+
+    /*
+    //Top view for sensoring
+    private View.OnTouchListener handleDragTouch = new View.OnTouchListener() {
+        @Override
+        public boolean onTouch(View v, MotionEvent event) {
+            int touch_x = (int) event.getX();
+            int touch_y = (int) event.getY();
+            Toast toast1 = Toast.makeText(MainActivity.this,
+                    "X: " + touch_x + ", Y: " + touch_y, Toast.LENGTH_LONG);
+            //顯示Toast
+            toast1.show();
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    Log.i("TAG", "touched down");
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    Log.i("TAG", "moving: (" + touch_x + ", " + touch_y + ")");
+                    break;
+                case MotionEvent.ACTION_UP:
+                    Log.i("TAG", "touched up");
+                    break;
+            }
+            return true;
+        }
+    };
+     */
+
+    //Media Recorder function
     public void prepareRecorder(){
         //Success for start,but shut down on stop
 
@@ -759,48 +824,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
-    public void resetTracker(){
-        roiRect.x = (int)trackerCoordinate.x;
-        roiRect.y = (int)trackerCoordinate.y;
-        roiRect.width = (int)trackerSize.x;
-        roiRect.height = (int)trackerSize.y;
-
-        roiRect2d.x = trackerCoordinate.x;
-        roiRect2d.y = trackerCoordinate.y;
-        roiRect2d.width = trackerSize.x;
-        roiRect2d.height = trackerSize.y;
 
 
-        //without value, blank rect
-        //roiRect = null;
-        //roiRect2d = null;
-    }
-    /*
-    //Top view for sensoring
-    private View.OnTouchListener handleDragTouch = new View.OnTouchListener() {
-        @Override
-        public boolean onTouch(View v, MotionEvent event) {
-            int touch_x = (int) event.getX();
-            int touch_y = (int) event.getY();
-            Toast toast1 = Toast.makeText(MainActivity.this,
-                    "X: " + touch_x + ", Y: " + touch_y, Toast.LENGTH_LONG);
-            //顯示Toast
-            toast1.show();
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    Log.i("TAG", "touched down");
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    Log.i("TAG", "moving: (" + touch_x + ", " + touch_y + ")");
-                    break;
-                case MotionEvent.ACTION_UP:
-                    Log.i("TAG", "touched up");
-                    break;
-            }
-            return true;
-        }
-    };
-     */
 
     //Set rectangle info from drag class
     public void calculateRectInfo(android.graphics.Point[] points){
@@ -1011,17 +1036,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
-    //API Switch, ignore
-    /*
-    @Override
-    public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-        setUseNNAPI(isChecked);
-        if (isChecked) apiSwitchCompat.setText("NNAPI");
-        else apiSwitchCompat.setText("TFLITE");
-    }
-
-     */
-
     /*
     //Thread function on click, ignore
     @Override
@@ -1059,117 +1073,16 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         inferenceTimeTextView.setText(inferenceTime);
     }
      */
-
-    protected void processImage() {
-
-        ++timestamp;
-        final long currTimestamp = timestamp;
-        //trackingOverlay.postInvalidate();
-
-        // No mutex needed as this method is not reentrant.
-        if (computingDetection) {
-            readyForNextImage();
-            return;
-        }
-        computingDetection = true;
-        LOGGER.i("Preparing image " + currTimestamp + " for detection in bg thread.");
-
-        rgbFrameBitmap.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight);
-
-        readyForNextImage();
-
-
-        //將白紙鋪到畫布Canvas上
-        final Canvas canvas = new Canvas(croppedBitmap);
-
-        //
-        canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
-        // For examining the actual TF input.
-        if (SAVE_PREVIEW_BITMAP) {
-            ImageUtils.saveBitmap(croppedBitmap);
-        }
-
-        runInBackground(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        LOGGER.i("Running detection on image " + currTimestamp);
-                        final long startTime = SystemClock.uptimeMillis();
-                        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
-                        lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
-
-                        cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
-                        final Canvas canvas = new Canvas(cropCopyBitmap);
-                        final Paint paint = new Paint();
-                        paint.setColor(Color.RED);
-                        paint.setStyle(Paint.Style.STROKE);
-                        paint.setStrokeWidth(2.0f);
-
-                        float minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
-                        switch (MODE) {
-                            case TF_OD_API:
-                                minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
-                                break;
-                        }
-
-                        final List<Classifier.Recognition> mappedRecognitions =
-                                new LinkedList<Classifier.Recognition>();
-
-                        //Draw Location of the rectangle, no need!!! I will draw it myself --Me
-                        //Keep the logic
-                        for (final Classifier.Recognition result : results) {
-                            final RectF location = result.getLocation();
-                            if (location != null && result.getConfidence() >= minimumConfidence) {
-                                System.out.println("result.getTitle(): " + result.getTitle());
-                                //Draw rectangle on the canvas, can be replace by our boundary
-                                canvas.drawRect(location, paint);
-
-                                cropToFrameTransform.mapRect(location);
-
-                                result.setLocation(location);
-                                mappedRecognitions.add(result);
-                            }
-                        }
-
-                        //tracker.trackResults(mappedRecognitions, currTimestamp);
-                        //trackingOverlay.postInvalidate();
-
-                        computingDetection = false;
-
-                        //Display value on screen
-            /*
-            runOnUiThread(
-                new Runnable() {
-                  @Override
-                  public void run() {
-                    showFrameInfo(previewWidth + "x" + previewHeight);
-                    showCropInfo(cropCopyBitmap.getWidth() + "x" + cropCopyBitmap.getHeight());
-                    showInference(lastProcessingTimeMs + "ms");
-                  }
-                });
-
-             */
-                    }
-                });
-    }
-
     protected void onPreviewSizeChosen(final android.util.Size size, final int rotation) {
 
-    /*
-    //Text Size
-    final float textSizePx =
-        TypedValue.applyDimension(
-            TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
+        //Text Size
+        final float textSizePx =
+                TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
 
-    //BorderText
-    borderedText = new BorderedText(textSizePx);
-    borderedText.setTypeface(Typeface.MONOSPACE);
-
-     */
-
-        //Tracker , can ignore!
-        //tracker = new MultiBoxTracker(this);
-
+        //BorderText
+        borderedText = new BorderedText(textSizePx);
+        borderedText.setTypeface(Typeface.MONOSPACE);
 
         int cropSize = TF_OD_API_INPUT_SIZE;
 
@@ -1211,23 +1124,118 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         cropToFrameTransform = new Matrix();
         frameToCropTransform.invert(cropToFrameTransform);
 
-        //trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
+        trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
 
-    /*
-    trackingOverlay.addCallback(
-        new DrawCallback() {
-          @Override
-          public void drawCallback(final Canvas canvas) {
-            tracker.draw(canvas);
-            if (isDebug()) {
-              tracker.drawDebug(canvas);
-            }
-          }
-        });
 
-     */
+        trackingOverlay.addCallback(
+                new OverlayView.DrawCallback() {
+                    @Override
+                    public void drawCallback(final Canvas canvas) {
 
-        //tracker.setFrameConfiguration(previewWidth, previewHeight, sensorOrientation);
+                        multiBoxTracker.draw(canvas);
+                        if (isDebug()) {
+                            multiBoxTracker.drawDebug(canvas);
+                        }
+                    }
+                });
+
+        multiBoxTracker.setFrameConfiguration(previewWidth, previewHeight, sensorOrientation);
+    }
+
+    protected void processImage() {
+
+        ++timestamp;
+        final long currTimestamp = timestamp;
+        trackingOverlay.postInvalidate();
+
+        // No mutex needed as this method is not reentrant.
+        if (computingDetection) {
+            readyForNextImage();
+            return;
+        }
+        computingDetection = true;
+        LOGGER.i("Preparing image " + currTimestamp + " for detection in bg thread.");
+
+        rgbFrameBitmap.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight);
+
+        readyForNextImage();
+
+
+        //將白紙鋪到畫布Canvas上
+        final Canvas canvas = new Canvas(croppedBitmap);
+
+        canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
+        // For examining the actual TF input.
+        if (SAVE_PREVIEW_BITMAP) {
+            ImageUtils.saveBitmap(croppedBitmap);
+        }
+
+        //Use worker thread to do the object detection/classification
+        runInBackground(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        LOGGER.i("Running detection on image " + currTimestamp);
+                        final long startTime = SystemClock.uptimeMillis();
+                        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+                        lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
+
+                        cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
+                        final Canvas canvas = new Canvas(cropCopyBitmap);
+                        final Paint paint = new Paint();
+                        //paint.setColor(Color.RED);
+                        //paint.setStyle(Paint.Style.STROKE);
+                        //paint.setStrokeWidth(2.0f);
+
+                        float minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
+                        switch (MODE) {
+                            case TF_OD_API:
+                                minimumConfidence = MINIMUM_CONFIDENCE_TF_OD_API;
+                                break;
+                        }
+
+                        final List<Classifier.Recognition> mappedRecognitions =
+                                new LinkedList<Classifier.Recognition>();
+
+                        //Draw Location of the rectangle, no need!!! I will draw it myself --Me
+                        //Keep the logic
+                        for (final Classifier.Recognition result : results) {
+                            final RectF location = result.getLocation();
+                            if (location != null && result.getConfidence() >= minimumConfidence) {
+                                System.out.println("result.getTitle(): " + result.getTitle() + ", Location of result: " + result.getLocation() + ", .getConfidence(): " + result.getConfidence());
+
+                                //Draw rectangle on the canvas, can be replace by our boundary
+
+                                canvas.drawRect(location, paint);
+                                //Imgproc.rectangle(mRgba, targetObjectRect ,greenColorOutline,2);
+
+                                cropToFrameTransform.mapRect(location);
+
+                                result.setLocation(location);
+                                mappedRecognitions.add(result);
+                            }
+                        }
+
+                        multiBoxTracker.trackResults(mappedRecognitions, currTimestamp);
+                        trackingOverlay.postInvalidate();
+
+                        computingDetection = false;
+
+                        //Display value on screen
+            /*
+            runOnUiThread(
+                new Runnable() {
+                  @Override
+                  public void run() {
+                    showFrameInfo(previewWidth + "x" + previewHeight);
+                    showCropInfo(cropCopyBitmap.getWidth() + "x" + cropCopyBitmap.getHeight());
+                    showInference(lastProcessingTimeMs + "ms");
+                  }
+                });
+
+             */
+                    }
+                });
     }
 
     //protected abstract int getLayoutId();
@@ -1236,8 +1244,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         return null;
     }
 
-    //protected abstract void setNumThreads(int numThreads);
+    //Pass location to Tracker
 
-    //protected abstract void setUseNNAPI(boolean isChecked);
 
 }
