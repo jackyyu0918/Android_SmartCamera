@@ -22,6 +22,7 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
+import android.os.health.SystemHealthManager;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.MenuItem;
@@ -107,6 +108,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     //TensorFlow MultiBoxTracker
     private MultiBoxTracker multiBoxTracker;
 
+    //Tracking result
+    private List<Classifier.Recognition> RecognizedItemList = null;
+
     private Rect2d roiRect2d;
     private Rect roiRect;
     //Tracking object use rect
@@ -143,6 +147,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     //Switch for mode
     //true = ManualMode (Drag action), false = Automatic mode (Object detection)
     private boolean ManualMode = false;
+
+    private boolean objectDetectionFeautre = true;
 
     //=================TensorFlowLite interpreter==================//
         //Camera Activity
@@ -411,6 +417,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             @Override
             public void onClick(View view)
             {
+
+                //testing button
+                stopObjectDetection();
+
                 isInitTracker = false;
                 objectTracker = null;
 
@@ -607,65 +617,64 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //============End of normal tracking==============//
 
-        /*
+
         //================Object detection================//
         //CameraActivity
-        if (isProcessingFrame) {
-            LOGGER.w("Dropping frame!");
-            return mRgba;
-        }
-
-        try {
-            // Initialize the storage bitmaps once when the resolution is known.
-            //Set up rgbBytes with camera size
-            //If already run setup, no need to run this setup
-            if (rgbBytes == null) {
-                Camera.Size previewSize = camera.getParameters().getPreviewSize();
-                previewHeight = previewSize.height;
-                previewWidth = previewSize.width;
-                rgbBytes = new int[previewWidth * previewHeight];
-
-                //onPreviewSizeChosen
-                onPreviewSizeChosen(new android.util.Size(previewSize.width, previewSize.height), 90);
+        if(objectDetectionFeautre == true) {
+            if (isProcessingFrame) {
+                LOGGER.w("Dropping frame!");
+                return mRgba;
             }
 
-        } catch (final Exception e) {
-            LOGGER.e(e, "Exception!");
-            return mRgba;
+            try {
+                // Initialize the storage bitmaps once when the resolution is known.
+                //Set up rgbBytes with camera size
+                //If already run setup, no need to run this setup
+                if (rgbBytes == null) {
+                    Camera.Size previewSize = camera.getParameters().getPreviewSize();
+                    previewHeight = previewSize.height;
+                    previewWidth = previewSize.width;
+                    rgbBytes = new int[previewWidth * previewHeight];
+
+                    //onPreviewSizeChosen
+                    onPreviewSizeChosen(new android.util.Size(previewSize.width, previewSize.height), 90);
+                }
+
+            } catch (final Exception e) {
+                LOGGER.e(e, "Exception!");
+                return mRgba;
+            }
+
+            isProcessingFrame = true;
+            yuvBytes[0] = bytes;
+            yRowStride = previewWidth;//Debug
+
+
+            // Convert byes to rbgBytes
+            imageConverter =
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            //Store
+                            ImageUtils.convertYUV420SPToARGB8888(bytes, previewWidth, previewHeight, rgbBytes);
+                        }
+                    };
+
+
+            postInferenceCallback =
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            camera.addCallbackBuffer(bytes);
+                            isProcessingFrame = false;
+                        }
+                    };
+
+            //Process Image ()
+            processImage();
         }
 
-        isProcessingFrame = true;
-        yuvBytes[0] = bytes;
-        yRowStride = previewWidth;//Debug
-
-
-        // Convert byes to rbgBytes
-        imageConverter =
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        //Store
-                        ImageUtils.convertYUV420SPToARGB8888(bytes, previewWidth, previewHeight, rgbBytes);
-                    }
-                };
-
-
-        postInferenceCallback =
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        camera.addCallbackBuffer(bytes);
-                        isProcessingFrame = false;
-                    }
-                };
-
-        //Process Image ()
-        processImage();
-
         //Return colorful Matrix to generate camera preview
-
-         */
-
         //Imgproc.rectangle(mRgba, new Rect(786, 245, 1303-786, 663-245),greenColorOutline,2);
 
         return mRgba;
@@ -1217,6 +1226,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                         }
 
                         multiBoxTracker.trackResults(mappedRecognitions, currTimestamp);
+                        RecognizedItemList = mappedRecognitions;
                         trackingOverlay.postInvalidate();
 
                         computingDetection = false;
@@ -1245,6 +1255,33 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     //Pass location to Tracker
+
+    //Stop object detection feature
+    //Can pause the object detection action
+    protected void stopObjectDetection(){
+
+        //Make sure the object detector detected some object
+        if(RecognizedItemList != null) {
+
+            handlerThread.quitSafely();
+            try {
+                handlerThread.join();
+                handlerThread = null;
+                handler = null;
+            } catch (final InterruptedException e) {
+                System.out.println(e);
+            }
+
+            objectDetectionFeautre = false;
+
+            System.out.println("RecognizedItemList.size(): " + RecognizedItemList.size());
+
+            for (Classifier.Recognition result : RecognizedItemList) {
+                System.out.println("Back Tracking: " + result.getTitle() + ", " + result.getLocation());
+            }
+        }
+
+    }
 
 
 }
