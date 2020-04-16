@@ -22,7 +22,6 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
-import android.os.health.SystemHealthManager;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.MenuItem;
@@ -33,6 +32,7 @@ import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -67,6 +67,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -110,6 +111,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     //Tracking result
     private List<Classifier.Recognition> RecognizedItemList = null;
+    private Classifier.Recognition selectedRecognizedItem = null;
 
     private Rect2d roiRect2d;
     private Rect roiRect;
@@ -140,15 +142,22 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     // for start recording
     private Button button_startRecord;
 
+    // for pausing object detection
+    private ImageButton button_pauseObjectDetection;
+
+    //Switch
+    // for switching manual mode and object detection mode
+    private SwitchCompat modeSwitch;
+
     //Media recorder
     public MediaRecorder recorder = new MediaRecorder();
     private boolean isRecording = false;
 
     //Switch for mode
-    //true = ManualMode (Drag action), false = Automatic mode (Object detection)
-    private boolean ManualMode = false;
-
-    private boolean objectDetectionFeautre = true;
+    //True  = Object detection mode, auto detect object
+    //False = ManualMode, user drag out the boundary
+    //Default to be false!
+    private boolean objectDetectionFeature = false;
 
     //=================TensorFlowLite interpreter==================//
         //Camera Activity
@@ -218,8 +227,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     private boolean debug = false;
 
-    //private SwitchCompat apiSwitchCompat;
-
+    //Drop down menu variable
+    private ArrayAdapter<String> detectedObjectNameAdaptar = null;
 
     //----------------------------end of class field----------------------------------//
 
@@ -255,7 +264,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_main);
 
-
         //default setting
         /*
         mOpenCvCameraView = findViewById(R.id.main_surfaceView);
@@ -290,24 +298,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //Tracker section
         //roiRect2d setting
-
-        //old square roiRect2d 1:1
-        /*
-        trackerCoordinate = new Point(700,200);
-        trackerSize = new Point(300,300);
-        greenColorOutline = new Scalar(0, 255, 0, 255);
-         */
-
-
-        //new 2:1 size
-        /*
-        trackerCoordinate = new Point(1000,200);
-        trackerSize = new Point(210,300);
-        greenColorOutline = new Scalar(0, 255, 0, 255);
-        roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
-        roiRect = new Rect((int)trackerCoordinate.x,(int)trackerCoordinate.y,(int)trackerSize.x,(int)trackerSize.y);
-         */
-
         greenColorOutline = new Scalar(0, 255, 0, 255);
         trackerCoordinate = new Point();
         trackerSize = new Point();
@@ -321,20 +311,74 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         //currentTrackerType = "KCF";
 
         //spinner tracker selection
-        final Spinner trackerSpinner  = findViewById(R.id.trackerSpinner);
+        final Spinner detectedObjectSpinner  = findViewById(R.id.detectedObjectSpinner);
 
-        final ArrayAdapter<String> nameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.trackingAlgorithmName));
+        //final ArrayAdapter<String> nameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.trackingAlgorithmName));
+        //nameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        //trackerSpinner.setAdapter(nameAdaptar);
 
-        nameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        trackerSpinner.setAdapter(nameAdaptar);
+        List<String> detectedItemList = new ArrayList<String>();
 
+        detectedObjectNameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, detectedItemList);
+        detectedObjectNameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        detectedObjectSpinner.setAdapter(detectedObjectNameAdaptar);
 
-        trackerSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+        //onSelectItem
+        detectedObjectSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                //Toast.makeText(MainActivity.this, "You are choosing "+ parent.getSelectedItem().toString() + ".", Toast.LENGTH_SHORT).show() ;
+                //currentTrackerType = parent.getSelectedItem().toString();
+                //System.out.println("currentTrackerType: " + currentTrackerType);
                 Toast.makeText(MainActivity.this, "You are choosing "+ parent.getSelectedItem().toString() + ".", Toast.LENGTH_SHORT).show() ;
-                currentTrackerType = parent.getSelectedItem().toString();
-                System.out.println("currentTrackerType: " + currentTrackerType);
+
+                //Already exist selected object, choose another one will trigger reset
+                if(selectedRecognizedItem != null){
+                    isInitTracker = false;
+                    objectTracker = null;
+                    resetTracker();
+                }
+
+                if(RecognizedItemList != null && position!=0){
+
+                    selectedRecognizedItem = RecognizedItemList.get(position-1);
+                    System.out.println("selectedRecognizedItem: " + selectedRecognizedItem.getTitle() + ", Location: " + selectedRecognizedItem.getLocation() +", Confidence: " + selectedRecognizedItem.getConfidence() +" is selected in the drop-down menu!");
+
+                    //Set view disable
+                    trackingOverlay.setVisibility(View.GONE);
+
+                    //Start object tracking
+                    objectDetectionFeature = false;
+                    resetTracker();
+                    //createTracker(currentTrackerType);
+                    createTracker("MOSSE");
+
+                    //get user drag result
+                    setTrackerSize((int)selectedRecognizedItem.getLocation().left, (int)selectedRecognizedItem.getLocation().top, (int)(selectedRecognizedItem.getLocation().right - selectedRecognizedItem.getLocation().left), (int)(selectedRecognizedItem.getLocation().bottom - selectedRecognizedItem.getLocation().top));
+
+                    //tracker initialization
+                    objectTracker.init(mGray, roiRect2d);
+                    //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
+                    isInitTracker = true;
+
+                    //Tracker message
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Current tracker: " + objectTracker.getClass(), Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+
+                    Toast toast2 = Toast.makeText(MainActivity.this,
+                            "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast2.show();
+
+                    Toast toast3 = Toast.makeText(MainActivity.this,
+                            "Current tracker size: " + roiRect.width + "x" + roiRect.height, Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast3.show();
+                } else{
+                    Toast.makeText(MainActivity.this, "Please select detected object", Toast.LENGTH_SHORT).show() ;
+                }
             }
 
             @Override
@@ -342,6 +386,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 Toast.makeText(MainActivity.this, "Nothing is selected.", Toast.LENGTH_LONG).show();
             }
         });
+
+        //============End of spinner sction==============//
+
 
         //button onClick listener
         //start button
@@ -360,7 +407,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     //顯示Toast
                     toast1.show();
                 } else {
-                    createTracker(currentTrackerType);
+                    //Dynamic tracker Will be implemented in setting
+                    //createTracker(currentTrackerType);
+                    createTracker("MOSSE");
+
 
                     //get user drag result
                     calculateRectInfo(DragRegionView.points);
@@ -418,9 +468,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             public void onClick(View view)
             {
 
-                //testing button
-                stopObjectDetection();
-
                 isInitTracker = false;
                 objectTracker = null;
 
@@ -468,8 +515,56 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             }
         });
 
+        //pause object detection button
+        button_pauseObjectDetection = findViewById(R.id.button_pauseObjectDetection);
+        button_pauseObjectDetection.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view)
+            {
+                //testing button
+                stopObjectDetection();
+            }
+        });
+
         //Sensor View at top
         DragRegionView = (DragRegionView) findViewById(R.id.SensorView);
+
+        //Switch
+        modeSwitch = findViewById(R.id.modeSwitch);
+        modeSwitch.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v){
+
+                //isChecked = clicked/ball move to the right
+                if (modeSwitch.isChecked()){
+                    objectDetectionFeature = true;
+                    trackingOverlay.setVisibility(View.VISIBLE);
+
+                    DragRegionView.setEnabled(false);
+
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Object Detection mode has turned ON.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+                } else {
+                    objectDetectionFeature = false;
+                    trackingOverlay.setVisibility(View.GONE);
+
+                    DragRegionView.setEnabled(true);
+
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Object Detection mode has turned OFF.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+                }
+            }
+        });
+
+        //Overlay View for object tracking
+        //For drawing rectangle
+        trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
+
+
     }
 
     @Override
@@ -542,17 +637,81 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     //===============onCameraPreiew=================//
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
-        //Basic Info
+        //=======Basic Info======//
         mRgba = inputFrame.rgba();
         mGray = inputFrame.gray();
 
         Size sizeRgba = mRgba.size();
         int rows = (int) sizeRgba.height;
         int cols = (int) sizeRgba.width;
+        //=======End of Basic Info=======//
 
-        //===============tracking section==============//
-        /*
+        //============End of normal tracking==============//
+
+
+        //================Object detection================//
+        //CameraActivity
+        if(objectDetectionFeature == true) {
+            System.out.println("Performing object tracking!!.....");
+
+            if (isProcessingFrame) {
+                LOGGER.w("Dropping frame!");
+                return mRgba;
+            }
+
+            try {
+                // Initialize the storage bitmaps once when the resolution is known.
+                //Set up rgbBytes with camera size
+                //If already run setup, no need to run this setup
+                if (rgbBytes == null) {
+                    Camera.Size previewSize = camera.getParameters().getPreviewSize();
+                    previewHeight = previewSize.height;
+                    previewWidth = previewSize.width;
+                    rgbBytes = new int[previewWidth * previewHeight];
+
+                    //onPreviewSizeChosen
+                    onPreviewSizeChosen(new android.util.Size(previewSize.width, previewSize.height), 90);
+                }
+
+            } catch (final Exception e) {
+                LOGGER.e(e, "Exception!");
+                return mRgba;
+            }
+
+            isProcessingFrame = true;
+            yuvBytes[0] = bytes;
+            yRowStride = previewWidth;//Debug
+
+
+            // Convert byes to rbgBytes
+            imageConverter =
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            //Store
+                            ImageUtils.convertYUV420SPToARGB8888(bytes, previewWidth, previewHeight, rgbBytes);
+                        }
+                    };
+
+
+            postInferenceCallback =
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            camera.addCallbackBuffer(bytes);
+                            isProcessingFrame = false;
+                        }
+                    };
+
+            //Process Image ()
+            processImage();
+        }
+        //===============End of object tracking section==============//
+
+
+        //============Standard Tracking section======================//
         // if initialized tracker, start update the ROI
+        //This is the part of pure tracking
         if(isInitTracker){
 
             //Pre-defined target window details: x,y,width,height
@@ -611,71 +770,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             }
 
             Imgproc.rectangle(mRgba,roiRect,greenColorOutline,2);
-            Imgproc.putText(mRgba,"Target",new Point(roiRect.x,roiRect.y),1,3,greenColorOutline);
-        }
-        */
-
-        //============End of normal tracking==============//
-
-
-        //================Object detection================//
-        //CameraActivity
-        if(objectDetectionFeautre == true) {
-            if (isProcessingFrame) {
-                LOGGER.w("Dropping frame!");
-                return mRgba;
+            if(selectedRecognizedItem != null){
+                Imgproc.putText(mRgba,selectedRecognizedItem.getTitle(),new Point(roiRect.x,roiRect.y),1,3,greenColorOutline);
+            } else {
+                Imgproc.putText(mRgba,"Target",new Point(roiRect.x,roiRect.y),1,3,greenColorOutline);
             }
-
-            try {
-                // Initialize the storage bitmaps once when the resolution is known.
-                //Set up rgbBytes with camera size
-                //If already run setup, no need to run this setup
-                if (rgbBytes == null) {
-                    Camera.Size previewSize = camera.getParameters().getPreviewSize();
-                    previewHeight = previewSize.height;
-                    previewWidth = previewSize.width;
-                    rgbBytes = new int[previewWidth * previewHeight];
-
-                    //onPreviewSizeChosen
-                    onPreviewSizeChosen(new android.util.Size(previewSize.width, previewSize.height), 90);
-                }
-
-            } catch (final Exception e) {
-                LOGGER.e(e, "Exception!");
-                return mRgba;
-            }
-
-            isProcessingFrame = true;
-            yuvBytes[0] = bytes;
-            yRowStride = previewWidth;//Debug
-
-
-            // Convert byes to rbgBytes
-            imageConverter =
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            //Store
-                            ImageUtils.convertYUV420SPToARGB8888(bytes, previewWidth, previewHeight, rgbBytes);
-                        }
-                    };
-
-
-            postInferenceCallback =
-                    new Runnable() {
-                        @Override
-                        public void run() {
-                            camera.addCallbackBuffer(bytes);
-                            isProcessingFrame = false;
-                        }
-                    };
-
-            //Process Image ()
-            processImage();
         }
 
-        //Return colorful Matrix to generate camera preview
-        //Imgproc.rectangle(mRgba, new Rect(786, 245, 1303-786, 663-245),greenColorOutline,2);
+
 
         return mRgba;
     }
@@ -722,7 +824,34 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
+    public void setTrackerSize(int x, int y, int width, int height){
+        roiRect.x = x;
+        roiRect.y = y;
+        roiRect.width = width;
+        roiRect.height = height;
+
+        roiRect2d.x = x;
+        roiRect2d.y = y;
+        roiRect2d.width = width;
+        roiRect2d.height = height;
+    }
+
     public void resetTracker(){
+        /*
+        roiRect.x = (int)trackerCoordinate.x;
+        roiRect.y = (int)trackerCoordinate.y;
+        roiRect.width = (int)trackerSize.x;
+        roiRect.height = (int)trackerSize.y;
+
+        roiRect2d.x = trackerCoordinate.x;
+        roiRect2d.y = trackerCoordinate.y;
+        roiRect2d.width = trackerSize.x;
+        roiRect2d.height = trackerSize.y;
+
+         */
+        trackerCoordinate = new Point();
+        trackerSize = new Point();
+
         roiRect.x = (int)trackerCoordinate.x;
         roiRect.y = (int)trackerCoordinate.y;
         roiRect.width = (int)trackerSize.x;
@@ -865,6 +994,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         //顯示Toast
         toast1.show();
     }
+
 
     //===========TensorFlowLite==========//
         //CameraActivity
@@ -1133,9 +1263,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         cropToFrameTransform = new Matrix();
         frameToCropTransform.invert(cropToFrameTransform);
 
-        trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
-
-
         trackingOverlay.addCallback(
                 new OverlayView.DrawCallback() {
                     @Override
@@ -1272,16 +1399,24 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 System.out.println(e);
             }
 
-            objectDetectionFeautre = false;
+            objectDetectionFeature = false;
 
+            //Get the List of Recognized Item
             System.out.println("RecognizedItemList.size(): " + RecognizedItemList.size());
-
-            for (Classifier.Recognition result : RecognizedItemList) {
-                System.out.println("Back Tracking: " + result.getTitle() + ", " + result.getLocation());
-            }
+            updateSpinnerMenu();
         }
 
     }
 
+    protected void updateSpinnerMenu(){
+        //Add item to drop down list and refresh
+        detectedObjectNameAdaptar.clear();
+        detectedObjectNameAdaptar.add("Please select detected object");
+        for (Classifier.Recognition result : RecognizedItemList) {
+            detectedObjectNameAdaptar.add(result.getTitle() + " " + result.getConfidence()*100 + "%");
 
+            System.out.println("Back Tracking: " + result.getTitle() + ", " + result.getLocation());
+        }
+        detectedObjectNameAdaptar.notifyDataSetChanged();
+    }
 }
