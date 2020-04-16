@@ -1,35 +1,40 @@
 <PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <PreferenceCategory app:title="@string/messages_header">
-
-        <EditTextPreference
-            app:key="signature"
-            app:title="@string/signature_title"
-            app:useSimpleSummaryProvider="true" />
+    <PreferenceCategory app:title="Tracker">
 
         <ListPreference
-            app:defaultValue="reply"
-            app:entries="@array/reply_entries"
-            app:entryValues="@array/reply_values"
-            app:key="reply"
-            app:title="@string/reply_title"
-            app:useSimpleSummaryProvider="true" />
+            app:key="trackertype"
+            app:entries="@array/tracker_entries"
+            app:entryValues="@array/tracker_values"
+            app:title="Select tracking algorithm"
+            app:defaultValue="MOSSE"
+            app:useSimpleSummaryProvider="true"
+            />
 
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/sync_header">
+    <PreferenceCategory  app:title="Object Detection">
+        <Preference
+            app:key="modelversion"
+            app:title="Model version"
+            app:summary="coco_ssd_mobilenet_v1_1.0_quant"
+           />
+    </PreferenceCategory>
 
-        <SwitchPreferenceCompat
-            app:key="sync"
-            app:title="@string/sync_title" />
+    <PreferenceCategory app:title="About the Application">
+        <Preference
+            app:key="developer"
+            app:title="Developer"
+            app:summary="Jacky YU (54820425) \n Email address: kakityu-6@my.cityu.edu.hk"
+            />
 
-        <SwitchPreferenceCompat
-            app:dependency="sync"
-            app:key="attachment"
-            app:summaryOff="@string/attachment_summary_off"
-            app:summaryOn="@string/attachment_summary_on"
-            app:title="@string/attachment_title" />
+        <Preference
+            app:key="copyRight"
+            app:title="Copy Right"
+            app:summary="Copyright ©2020 Jacky YU. All Rights Reserved."
+            />
 
     </PreferenceCategory>
+
 
 </PreferenceScreen>

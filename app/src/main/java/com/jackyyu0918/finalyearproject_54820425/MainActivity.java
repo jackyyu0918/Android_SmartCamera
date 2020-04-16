@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -43,6 +44,8 @@ import android.widget.Toast;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceManager;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
@@ -197,8 +200,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final int TF_OD_API_INPUT_SIZE = 300;
     private static final boolean TF_OD_API_IS_QUANTIZED = true;
     //model name
+    
     private static final String TF_OD_API_MODEL_FILE = "detect.tflite";
     private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/labelmap.txt";
+
+
     private static final DetectorMode MODE = DetectorMode.TF_OD_API;
     // Minimum detection confidence to track a detection. 0.5/50%
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
@@ -362,8 +368,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     //Start object tracking
                     objectDetectionFeature = false;
                     resetTracker();
-                    //createTracker(currentTrackerType);
-                    createTracker("MOSSE");
+                    createTracker(getDefaults("trackertype",MainActivity.this));
+                    //createTracker("MOSSE");
 
                     //get user drag result
                     setTrackerSize((int) selectedRecognizedItem.getLocation().left, (int) selectedRecognizedItem.getLocation().top, (int) (selectedRecognizedItem.getLocation().right - selectedRecognizedItem.getLocation().left), (int) (selectedRecognizedItem.getLocation().bottom - selectedRecognizedItem.getLocation().top));
@@ -421,8 +427,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                         toast1.show();
                     } else {
                         //Dynamic tracker Will be implemented in setting
-                        //createTracker(currentTrackerType);
-                        createTracker("MOSSE");
+                        createTracker(getDefaults("trackertype",MainActivity.this));
+                        //createTracker("MOSSE");
 
 
                         //get user drag result
@@ -435,22 +441,17 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
                         //Tracker message
                         Toast toast1 = Toast.makeText(MainActivity.this,
-                                "Current tracker: " + objectTracker.getClass(), Toast.LENGTH_LONG);
+                                "Current tracker: " + objectTracker.getClass() + ", camera size: \" + mOpenCvCameraView.getWidth() + \"x\" + mOpenCvCameraView.getHeight()", Toast.LENGTH_LONG);
                         //顯示Toast
                         toast1.show();
-
-                        Toast toast2 = Toast.makeText(MainActivity.this,
-                                "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
-                        //顯示Toast
-                        toast2.show();
 
                         DragRegionView.isReset = true;
                         DragRegionView.invalidate();
 
-                        Toast toast3 = Toast.makeText(MainActivity.this,
+                        Toast toast2 = Toast.makeText(MainActivity.this,
                                 "Current tracker size: " + roiRect.width + "x" + roiRect.height, Toast.LENGTH_LONG);
                         //顯示Toast
-                        toast3.show();
+                        toast2.show();
                     }
                 }
             }
@@ -608,7 +609,13 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 //isChecked = clicked/ball move to the right
                 //Turn on object detection feature
                 if (modeSwitch.isChecked()) {
+                    resetTracker();
+
                     objectDetectionFeature = true;
+
+                    //testing
+                    testMat = null;
+                    optimizeObjectMat = null;
 
                     //Display/Hide unused button/view
                     trackingOverlay.setVisibility(View.VISIBLE);
@@ -624,6 +631,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     //顯示Toast
                     toast1.show();
                 } else {
+                    resetTracker();
                     objectDetectionFeature = false;
 
                     //Display/Hide unused button/view
@@ -915,18 +923,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public void resetTracker() {
-        /*
-        roiRect.x = (int)trackerCoordinate.x;
-        roiRect.y = (int)trackerCoordinate.y;
-        roiRect.width = (int)trackerSize.x;
-        roiRect.height = (int)trackerSize.y;
-
-        roiRect2d.x = trackerCoordinate.x;
-        roiRect2d.y = trackerCoordinate.y;
-        roiRect2d.width = trackerSize.x;
-        roiRect2d.height = trackerSize.y;
-
-         */
+        isInitTracker = false;
         trackerCoordinate = new Point();
         trackerSize = new Point();
 
@@ -939,39 +936,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         roiRect2d.y = trackerCoordinate.y;
         roiRect2d.width = trackerSize.x;
         roiRect2d.height = trackerSize.y;
-
-
-        //without value, blank rect
-        //roiRect = null;
-        //roiRect2d = null;
     }
-
-    /*
-    //Top view for sensoring
-    private View.OnTouchListener handleDragTouch = new View.OnTouchListener() {
-        @Override
-        public boolean onTouch(View v, MotionEvent event) {
-            int touch_x = (int) event.getX();
-            int touch_y = (int) event.getY();
-            Toast toast1 = Toast.makeText(MainActivity.this,
-                    "X: " + touch_x + ", Y: " + touch_y, Toast.LENGTH_LONG);
-            //顯示Toast
-            toast1.show();
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    Log.i("TAG", "touched down");
-                    break;
-                case MotionEvent.ACTION_MOVE:
-                    Log.i("TAG", "moving: (" + touch_x + ", " + touch_y + ")");
-                    break;
-                case MotionEvent.ACTION_UP:
-                    Log.i("TAG", "touched up");
-                    break;
-            }
-            return true;
-        }
-    };
-     */
 
     //Set rectangle info from drag class
     public void calculateRectInfo(android.graphics.Point[] points) {
@@ -1480,13 +1445,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public void stopRecord() {
-        //testing add codes
-        /* ignore
-        recorder.setOnErrorListener(null);
-        recorder.setOnInfoListener(null);
-        recorder.setPreviewDisplay(null);
-         */
-
         try {
             recorder.stop();
             isRecording = false;
@@ -1503,7 +1461,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     //=========================End of Media Recorder====================//
 
-
-
-
+    //Get value from shared preference
+    public static String getDefaults(String key, Context context) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
+        return preferences.getString(key, null);
+    }
 }
