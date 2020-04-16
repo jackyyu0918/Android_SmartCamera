@@ -6,19 +6,6 @@
     android:layout_height="match_parent">
 
 
-    <Button
-        android:id="@+id/button_resetTracker"
-        android:layout_width="80dp"
-        android:layout_height="56dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="28dp"
-        android:text="@string/resetButtonText"
-        opencv:layout_constraintBottom_toBottomOf="parent"
-        opencv:layout_constraintEnd_toEndOf="parent"
-        opencv:layout_constraintHorizontal_bias="1.0"
-        opencv:layout_constraintStart_toEndOf="@+id/button_startTrack"
-        android:elevation="3dp"/>
-
     <com.jackyyu0918.finalyearproject_54820425.Zoomcameraview
         android:id="@+id/ZoomCameraView"
         android:layout_width="fill_parent"
@@ -30,86 +17,6 @@
         opencv:layout_constraintStart_toStartOf="parent"
         opencv:layout_constraintTop_toTopOf="parent"
         opencv:show_fps="true" />
-
-    <Button
-        android:id="@+id/button_startTrack"
-        android:layout_width="92dp"
-        android:layout_height="56dp"
-        android:layout_marginStart="28dp"
-        android:layout_marginBottom="30dp"
-        android:text="@string/startButtonText"
-        opencv:layout_constraintBottom_toBottomOf="@+id/detectedObjectSpinner"
-        opencv:layout_constraintStart_toEndOf="@+id/detectedObjectSpinner"
-        opencv:layout_constraintTop_toTopOf="@+id/detectedObjectSpinner"
-        opencv:layout_constraintVertical_bias="0.0"
-        android:elevation="3dp"/>
-
-    <Spinner
-        android:id="@+id/detectedObjectSpinner"
-        android:layout_width="420dp"
-
-        android:layout_height="56dp"
-
-        android:layout_marginStart="48dp"
-        android:layout_marginBottom="30dp"
-        android:background="@android:color/background_light"
-        android:spinnerMode="dropdown"
-        opencv:layout_constraintBottom_toBottomOf="parent"
-        opencv:layout_constraintStart_toStartOf="parent"
-        android:elevation="3dp"/>
-
-    <Button
-        android:id="@+id/button_fullView"
-        android:layout_width="182dp"
-        android:layout_height="56dp"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="15dp"
-        android:text="@string/switchModeButtonText"
-        opencv:layout_constraintBottom_toTopOf="@+id/button_resetTracker"
-        opencv:layout_constraintEnd_toEndOf="parent"
-        android:elevation="3dp"/>
-
-    <Button
-        android:id="@+id/button_startRecord"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="15dp"
-        android:elevation="3dp"
-        android:src="@drawable/recording_button"
-        android:text="START RECORDING"
-        opencv:layout_constraintBottom_toTopOf="@+id/button_fullView"
-        opencv:layout_constraintEnd_toEndOf="parent" />
-        />
-
-    <androidx.appcompat.widget.SwitchCompat
-        android:id="@+id/modeSwitch"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="48dp"
-        android:layout_marginBottom="7dp"
-        android:text="ObjectDetection"
-        android:textStyle="bold"
-        android:textOff="OFF"
-        android:textOn="ON"
-        android:thumb="@drawable/sw_thumb"
-        android:track="@drawable/sw_track"
-        android:showText="true"
-        android:switchPadding="5dp"
-
-        opencv:layout_constraintBottom_toTopOf="@+id/button_startRecord"
-        opencv:layout_constraintEnd_toEndOf="parent"
-        android:elevation="3dp"/>
-
-    <SeekBar
-        android:id="@+id/CameraZoomControls"
-        android:layout_width="420dp"
-        android:layout_height="28dp"
-        android:layout_marginStart="48dp"
-        android:layout_marginBottom="15dp"
-        opencv:layout_constraintBottom_toTopOf="@+id/detectedObjectSpinner"
-        opencv:layout_constraintStart_toStartOf="parent"
-        android:elevation="3dp"/>
 
     <com.jackyyu0918.finalyearproject_54820425.DragRegionView
         android:id="@+id/SensorView"
@@ -133,15 +40,117 @@
         android:layout_marginEnd="35dp"/>
 
     <ImageButton
+        android:id="@+id/button_startRecord"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="15dp"
+        android:background="@drawable/round_button"
+        android:elevation="3dp"
+        android:src="@drawable/button_startrecording"
+        opencv:layout_constraintBottom_toTopOf="@+id/button_fullView"
+        opencv:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/button_resetTracker"
+        android:layout_width="80dp"
+        android:layout_height="56dp"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="20dp"
+        android:elevation="3dp"
+        android:text="@string/resetButtonText"
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/button_startTrack"
+        android:layout_width="92dp"
+        android:layout_height="56dp"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="20dp"
+        android:elevation="3dp"
+        android:text="@string/startButtonText"
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintEnd_toStartOf="@+id/button_resetTracker" />
+
+    <Spinner
+        android:id="@+id/detectedObjectSpinner"
+        android:layout_width="420dp"
+
+        android:layout_height="56dp"
+
+        android:layout_marginStart="48dp"
+        android:layout_marginBottom="30dp"
+        android:background="@android:color/background_light"
+        android:elevation="3dp"
+        android:spinnerMode="dropdown"
+
+        android:visibility="gone"
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/button_fullView"
+        android:layout_width="182dp"
+        android:layout_height="56dp"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="15dp"
+        android:text="@string/switchModeButtonText"
+        opencv:layout_constraintBottom_toTopOf="@+id/button_resetTracker"
+        opencv:layout_constraintEnd_toEndOf="parent"
+        android:elevation="3dp"/>
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/modeSwitch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="48dp"
+        android:layout_marginBottom="15dp"
+        android:elevation="3dp"
+        android:showText="true"
+        android:switchPadding="5dp"
+        android:text="ObjectDetection"
+        android:textOff="OFF"
+        android:textOn="ON"
+        android:textStyle="bold"
+
+        android:thumb="@drawable/sw_thumb"
+        android:track="@drawable/sw_track"
+        opencv:layout_constraintBottom_toTopOf="@+id/button_startRecord"
+        opencv:layout_constraintEnd_toEndOf="parent" />
+
+    <SeekBar
+        android:id="@+id/CameraZoomControls"
+        android:layout_width="420dp"
+        android:layout_height="28dp"
+        android:layout_marginStart="48dp"
+        android:layout_marginBottom="15dp"
+        android:elevation="3dp"
+        opencv:layout_constraintBottom_toTopOf="@+id/detectedObjectSpinner"
+        opencv:layout_constraintStart_toStartOf="parent" />
+
+    <ImageButton
         android:id="@+id/button_pauseObjectDetection"
-        android:layout_width="44dp"
+        android:layout_width="50dp"
         android:layout_height="50dp"
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="12dp"
+        android:background="@drawable/round_button"
+        android:src="@drawable/button_pause_50x50"
+        android:visibility="gone"
         opencv:layout_constraintBottom_toTopOf="@+id/button_fullView"
-        opencv:layout_constraintEnd_toStartOf="@+id/button_startRecord"
-        android:src="@drawable/button_pause_35x35"
-        />
+        opencv:layout_constraintEnd_toStartOf="@+id/button_startRecord" />
+
+    <ImageButton
+        android:id="@+id/button_setting"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:layout_marginTop="18dp"
+        android:layout_marginEnd="48dp"
+        android:background="@drawable/round_button"
+        android:src="@drawable/button_setting_50x50"
+        opencv:layout_constraintEnd_toEndOf="parent"
+        opencv:layout_constraintTop_toTopOf="parent" />
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>

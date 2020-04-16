@@ -18,6 +18,9 @@
             android:name=".SettingsActivity"
             android:label="@string/title_activity_settings"></activity>
         <activity
+            android:name=".SettingsActivity"
+            android:label="@string/title_activity_settings" />
+        <activity
             android:name=".MainActivity"
             android:screenOrientation="landscape">
             <intent-filter>
