@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
@@ -26,9 +27,7 @@ import android.os.HandlerThread;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.TypedValue;
-import android.view.GestureDetector;
 import android.view.MenuItem;
-import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.View;
@@ -44,7 +43,6 @@ import android.widget.Toast;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.preference.Preference;
 import androidx.preference.PreferenceManager;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -89,7 +87,10 @@ import com.jackyyu0918.finalyearproject_54820425.tflite.*;
 import com.jackyyu0918.finalyearproject_54820425.env.*;
 import com.jackyyu0918.finalyearproject_54820425.tracking.MultiBoxTracker;
 
-public class MainActivity extends Activity implements CvCameraViewListener2 {
+//Media Recorder
+import com.jackyyu0918.finalyearproject_54820425.RecordingHandler;
+
+public class MainActivity extends Activity implements CvCameraViewListener2, View.OnClickListener {
     private static final String TAG = "OCVSample::Activity";
 
     //private CameraBridgeViewBase mOpenCvCameraView;
@@ -140,7 +141,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     //button
     // for init tracker
-    private Button button_startTrack;
+    private ImageButton button_startTrack;
     private String currentTrackerType;
 
     // for reset tracker
@@ -162,8 +163,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     // for switching manual mode and object detection mode
     private SwitchCompat modeSwitch;
 
+    //Spinner for object detected
+    Spinner detectedObjectSpinner = null;
+
     //Media recorder
-    public MediaRecorder recorder = new MediaRecorder();
+    //public MediaRecorder recorder = new MediaRecorder();
+    private RecordingHandler RecordingHandler;
     private boolean isRecording = false;
 
     //Switch for mode
@@ -200,7 +205,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final int TF_OD_API_INPUT_SIZE = 300;
     private static final boolean TF_OD_API_IS_QUANTIZED = true;
     //model name
-    
+
     private static final String TF_OD_API_MODEL_FILE = "detect.tflite";
     private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/labelmap.txt";
 
@@ -295,9 +300,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         mOpenCvCameraView.setZoomControl((SeekBar) findViewById(R.id.CameraZoomControls));
         mOpenCvCameraView.setCvCameraViewListener(this);
 
-        //Overlay view setting
-
-
         //Grant permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 == PackageManager.PERMISSION_DENIED) {
@@ -314,7 +316,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 120);
         }
 
-        //Tracker section
+        //======Tracker section=======//
         //roiRect2d setting
         greenColorOutline = new Scalar(0, 255, 0, 255);
         trackerCoordinate = new Point();
@@ -327,15 +329,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //tracker creation, base on drop down menu selection
         //currentTrackerType = "KCF";
+        //========End of Tracker section=========//
+
+        //===========Media Recorder section========//
+        //Singleton handler
+        RecordingHandler = RecordingHandler.getInstance();
 
         //spinner tracker selection
-        final Spinner detectedObjectSpinner = findViewById(R.id.detectedObjectSpinner);
+        detectedObjectSpinner = findViewById(R.id.detectedObjectSpinner);
 
         //final ArrayAdapter<String> nameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.trackingAlgorithmName));
         //nameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         //trackerSpinner.setAdapter(nameAdaptar);
 
-        List<String> detectedItemList = new ArrayList<String>();
+        final List<String> detectedItemList = new ArrayList<String>();
 
         detectedObjectNameAdaptar = new ArrayAdapter<String>(MainActivity.this, android.R.layout.simple_expandable_list_item_1, detectedItemList);
         detectedObjectNameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -368,7 +375,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     //Start object tracking
                     objectDetectionFeature = false;
                     resetTracker();
-                    createTracker(getDefaults("trackertype",MainActivity.this));
+                    createTracker(getValueFromPerference("trackertype", MainActivity.this));
                     //createTracker("MOSSE");
 
                     //get user drag result
@@ -406,158 +413,29 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         });
 
         //============End of spinner sction==============//
-
-
-        //button onClick listener
         //start button
         button_startTrack = findViewById(R.id.button_startTrack);
-        button_startTrack.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //No default tracker type
-                //firstTracker = TrackerKCF.create();
-
-                if (!objectDetectionFeature) {
-
-                    //own function, create proper tracker
-                    if (DragRegionView.points[0] == null) {
-                        Toast toast1 = Toast.makeText(MainActivity.this,
-                                "Please drag on target object.", Toast.LENGTH_LONG);
-                        //顯示Toast
-                        toast1.show();
-                    } else {
-                        //Dynamic tracker Will be implemented in setting
-                        createTracker(getDefaults("trackertype",MainActivity.this));
-                        //createTracker("MOSSE");
-
-
-                        //get user drag result
-                        calculateRectInfo(DragRegionView.points);
-
-                        //tracker initialization
-                        objectTracker.init(mGray, roiRect2d);
-                        //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
-                        isInitTracker = true;
-
-                        //Tracker message
-                        Toast toast1 = Toast.makeText(MainActivity.this,
-                                "Current tracker: " + objectTracker.getClass() + ", camera size: \" + mOpenCvCameraView.getWidth() + \"x\" + mOpenCvCameraView.getHeight()", Toast.LENGTH_LONG);
-                        //顯示Toast
-                        toast1.show();
-
-                        DragRegionView.isReset = true;
-                        DragRegionView.invalidate();
-
-                        Toast toast2 = Toast.makeText(MainActivity.this,
-                                "Current tracker size: " + roiRect.width + "x" + roiRect.height, Toast.LENGTH_LONG);
-                        //顯示Toast
-                        toast2.show();
-                    }
-                }
-            }
-        });
+        button_startTrack.setOnClickListener(this);
 
         //switch mode button
         button_fullView = findViewById(R.id.button_fullView);
-        button_fullView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                if (isFullScreen == false) {
-                    isFullScreen = true;
-                } else {
-                    isFullScreen = false;
-                }
-                //Tracker message
-                Toast toast = Toast.makeText(MainActivity.this,
-                        "Full screen mode: " + isFullScreen, Toast.LENGTH_LONG);
-                //顯示Toast
-                toast.show();
-            }
-        });
+        button_fullView.setOnClickListener(this);
 
         //reset button
         button_resetTrack = findViewById(R.id.button_resetTracker);
-        button_resetTrack.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                isInitTracker = false;
-                objectTracker = null;
-
-                //new 2:1 size
-                resetTracker();
-                DragRegionView.isReset = true;
-                DragRegionView.invalidate();
-                //testing****
-                //System.out.println("Coordinate: " + DragRegionView.points[0] + DragRegionView.points[1] + DragRegionView.points[2] + DragRegionView.points[3]);
-            }
-        });
+        button_resetTrack.setOnClickListener(this);
 
         //start recording button
-        //start button
         button_startRecord = findViewById(R.id.button_startRecord);
-        button_startRecord.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //Photo shooting/ScreenShot
-                if (!isRecording) {
-                    Mat captureMatrix = null;
-                    if (isInitTracker) {
-                        captureMatrix = testMat;
-                    } else {
-                        captureMatrix = mRgba;
-                    }
-
-                    Bitmap bmp = Bitmap.createBitmap(captureMatrix.width(), captureMatrix.height(), Bitmap.Config.ARGB_8888);
-                    Mat tmp = new Mat (captureMatrix.width(),captureMatrix.height(), CvType.CV_8UC1,new Scalar(4));
-                    System.out.println("tmp: " + tmp + ", bmp: " + bmp);
-
-                    //converting matrix to Bmp
-                    try {
-                        Imgproc.cvtColor(captureMatrix, tmp, Imgproc.COLOR_GRAY2RGBA, 4);
-                        Utils.matToBitmap(captureMatrix, bmp);
-                    }
-                    catch (CvException e){Log.d("Exception",e.getMessage());}
-
-                    //Store bitmap to local storage
-                    try (FileOutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + "image_" + generateDateInfo() + ".bmp")) {
-                        bmp.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
-                        Toast toast = Toast.makeText(MainActivity.this,
-                                "ScreenShot saved as " + Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + "image_" + generateDateInfo() + ".bmp", Toast.LENGTH_LONG);
-                        //顯示Toast
-                        toast.show();
-                        // PNG is a lossless format, the compression factor (100) is ignored
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-
-
-
-                } else {
-                    //Finish video recording if is recording
-                    //Recording message
-                    Toast toast = Toast.makeText(MainActivity.this,
-                            "End recording...", Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast.show();
-                    //button_startRecord.setText("START RECORDING");
-
-                    //empty the recorder before stop
-                    mOpenCvCameraView.setRecorder(null);
-                    stopRecord();
-
-                    button_startRecord.setImageResource(R.drawable.button_startrecording);
-                }
-            }
-        });
-
+        button_startRecord.setOnClickListener(this);
         //Long click detection -- Recording!
+
         button_startRecord.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
                 // prepareRecord();  <-- Moved to onCreate()
                 if (isRecording == false) {
-                    recorder.reset();
-                    prepareRecorder();
+                    RecordingHandler.prepareRecorder(mOpenCvCameraView);
 
                     //Recording message
                     Toast toast = Toast.makeText(MainActivity.this,
@@ -565,9 +443,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     //顯示Toast
                     toast.show();
                     //button_startRecord.setText("STOP RECORDING");
-                    startRecord();
+                    RecordingHandler.startRecord(isRecording);
 
                     button_startRecord.setImageResource(R.drawable.button_stoprecording);
+                    isRecording = true;
                 }
                 return true;
             }
@@ -576,24 +455,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //pause object detection button
         button_pauseObjectDetection = findViewById(R.id.button_pauseObjectDetection);
-        button_pauseObjectDetection.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //testing button
-                stopObjectDetection();
-            }
-        });
+        button_pauseObjectDetection.setOnClickListener(this);
 
         //setting button
         button_setting = findViewById(R.id.button_setting);
-        button_setting.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                //testing button
-                Intent settingPageIntent = new Intent(view.getContext(), SettingsActivity.class);
-                startActivity(settingPageIntent);
-            }
-        });
+        button_setting.setOnClickListener(this);
+
 
         //=======End of Button Configuration==========//
 
@@ -602,62 +469,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         //Switch
         modeSwitch = findViewById(R.id.modeSwitch);
-        modeSwitch.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                //isChecked = clicked/ball move to the right
-                //Turn on object detection feature
-                if (modeSwitch.isChecked()) {
-                    resetTracker();
-
-                    objectDetectionFeature = true;
-
-                    //testing
-                    testMat = null;
-                    optimizeObjectMat = null;
-
-                    //Display/Hide unused button/view
-                    trackingOverlay.setVisibility(View.VISIBLE);
-                    button_pauseObjectDetection.setVisibility(View.VISIBLE);
-                    detectedObjectSpinner.setVisibility(View.VISIBLE);
-
-                    DragRegionView.setVisibility(View.GONE);
-                    button_startTrack.setVisibility(View.GONE);
-                    button_resetTrack.setVisibility(View.GONE);
-
-                    Toast toast1 = Toast.makeText(MainActivity.this,
-                            "Object Detection mode has turned ON.", Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast1.show();
-                } else {
-                    resetTracker();
-                    objectDetectionFeature = false;
-
-                    //Display/Hide unused button/view
-                    trackingOverlay.setVisibility(View.GONE);
-                    button_pauseObjectDetection.setVisibility(View.GONE);
-                    detectedObjectSpinner.setVisibility(View.GONE);
-
-                    DragRegionView.setVisibility(View.VISIBLE);
-                    button_startTrack.setVisibility(View.VISIBLE);
-                    button_resetTrack.setVisibility(View.VISIBLE);
-
-                    DragRegionView.setEnabled(true);
-
-                    Toast toast1 = Toast.makeText(MainActivity.this,
-                            "Object Detection mode has turned OFF.", Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast1.show();
-                }
-            }
-        });
+        modeSwitch.setOnClickListener(this);
 
         //Overlay View for object tracking
         //For drawing rectangle
         trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
-
-
     }
 
     @Override
@@ -687,8 +503,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
 
-
-        //Multi Thread issue -Me
+        //Multi Thread issue
         handlerThread = new HandlerThread("inference");
         handlerThread.start();
         handler = new Handler(handlerThread.getLooper());
@@ -1252,7 +1067,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     protected void processImage() {
-
         ++timestamp;
         final long currTimestamp = timestamp;
         trackingOverlay.postInvalidate();
@@ -1268,7 +1082,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         rgbFrameBitmap.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight);
 
         readyForNextImage();
-
 
         //將白紙鋪到畫布Canvas上
         final Canvas canvas = new Canvas(croppedBitmap);
@@ -1363,6 +1176,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         //Make sure the object detector detected some object
         if (RecognizedItemList != null) {
 
+            //terminate worker thread to stop further detection
             handlerThread.quitSafely();
             try {
                 handlerThread.join();
@@ -1396,64 +1210,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     //=========================Media Recorder====================//
     //Media Recorder function
-    public void prepareRecorder() {
-        //Success for start,but shut down on stop
 
-        //Video source is from the surface
-        //Everything draw on the surface will be recorder by recorder
-        recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
-        recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
 
-        //Store the video with time stamp
-        String currentDateandTime = generateDateInfo();
 
-        recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + currentDateandTime + ".mp4");
-        recorder.setVideoEncodingBitRate(1000000);
-        recorder.setVideoFrameRate(60);
-        recorder.setVideoSize(mOpenCvCameraView.getWidth(), mOpenCvCameraView.getHeight());
-        recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-        recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
 
-        try {
-            recorder.prepare();
-            System.out.println("success prepared media recorder!!");
-
-        } catch (IllegalStateException e) {
-            Log.e("debug mediarecorder", "not prepare");
-        } catch (IOException e) {
-            Log.e("debug mediarecorder", "not prepare IOException");
-        }
-
-        //Initialized the mRecorder in CameraBridgeViewBase and make a new surface for recording!
-        //Everything draw on that
-        mOpenCvCameraView.setRecorder(recorder);
-
-        //Only Audio
-        //Success!
-            /*
-            recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            recorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-            recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile()+File.separator+"outputAudio.3gp");
-             */
-    }
-
-    public void startRecord() {
-        recorder.start();
-        isRecording = true;
-    }
-
-    public void stopRecord() {
-        try {
-            recorder.stop();
-            isRecording = false;
-        } catch (RuntimeException stopException) {
-            System.out.println("RuntimeException occurred!");
-        }
-    }
-
-    public String generateDateInfo(){
+    public String generateDateInfo() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
         String currentDateandTime = sdf.format(new Date());
         return currentDateandTime;
@@ -1461,9 +1222,200 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     //=========================End of Media Recorder====================//
 
-    //Get value from shared preference
-    public static String getDefaults(String key, Context context) {
+    //Get value from shared preference (Setting)
+    public static String getValueFromPerference(String key, Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
         return preferences.getString(key, null);
     }
+
+    //Centralizing button on click event
+    @Override
+    public void onClick(View v) {
+        switch (v.getId()) {
+
+            case R.id.button_startTrack:
+                if (!objectDetectionFeature) {
+
+                    //own function, create proper tracker
+                    if (DragRegionView.points[0] == null) {
+                        Toast toast1 = Toast.makeText(MainActivity.this,
+                                "Please drag on target object.", Toast.LENGTH_LONG);
+                        //顯示Toast
+                        toast1.show();
+                    } else {
+                        //Dynamic tracker Will be implemented in setting
+                        createTracker(getValueFromPerference("trackertype", MainActivity.this));
+                        //createTracker("MOSSE");
+
+
+                        //get user drag result
+                        calculateRectInfo(DragRegionView.points);
+
+                        //tracker initialization
+                        objectTracker.init(mGray, roiRect2d);
+                        //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
+                        isInitTracker = true;
+
+                        //Tracker message
+                        Toast toast1 = Toast.makeText(MainActivity.this,
+                                "Current tracker: " + objectTracker.getClass() + ", camera size: \" + mOpenCvCameraView.getWidth() + \"x\" + mOpenCvCameraView.getHeight()", Toast.LENGTH_LONG);
+                        //顯示Toast
+                        toast1.show();
+
+                        DragRegionView.isReset = true;
+                        DragRegionView.invalidate();
+
+                        Toast toast2 = Toast.makeText(MainActivity.this,
+                                "Current tracker size: " + roiRect.width + "x" + roiRect.height, Toast.LENGTH_LONG);
+                        //顯示Toast
+                        toast2.show();
+                    }
+                }
+                break;
+
+            case R.id.button_fullView:
+                if (isFullScreen == false) {
+                    isFullScreen = true;
+                } else {
+                    isFullScreen = false;
+                }
+                //Tracker message
+                Toast toast = Toast.makeText(MainActivity.this,
+                        "Full screen mode: " + isFullScreen, Toast.LENGTH_LONG);
+                //顯示Toast
+                toast.show();
+                break;
+
+            case R.id.button_resetTracker:
+                isInitTracker = false;
+                objectTracker = null;
+
+                //new 2:1 size
+                resetTracker();
+                DragRegionView.isReset = true;
+                DragRegionView.invalidate();
+                //testing****
+                //System.out.println("Coordinate: " + DragRegionView.points[0] + DragRegionView.points[1] + DragRegionView.points[2] + DragRegionView.points[3]);
+                break;
+
+            case R.id.button_startRecord:
+                //Photo shooting/ScreenShot
+                if (isRecording == false) {
+                    Mat captureMatrix = null;
+                    if (isInitTracker) {
+                        captureMatrix = testMat;
+                    } else {
+                        captureMatrix = mRgba;
+                    }
+
+                    Bitmap bmp = Bitmap.createBitmap(captureMatrix.width(), captureMatrix.height(), Bitmap.Config.ARGB_8888);
+                    Mat tmp = new Mat(captureMatrix.width(), captureMatrix.height(), CvType.CV_8UC1, new Scalar(4));
+                    System.out.println("tmp: " + tmp + ", bmp: " + bmp);
+
+                    //converting matrix to Bmp
+                    try {
+                        Imgproc.cvtColor(captureMatrix, tmp, Imgproc.COLOR_GRAY2RGBA, 4);
+                        Utils.matToBitmap(captureMatrix, bmp);
+                    } catch (CvException e) {
+                        Log.d("Exception", e.getMessage());
+                    }
+
+                    //Store bitmap to local storage
+                    try (FileOutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + "image_" + generateDateInfo() + ".bmp")) {
+                        bmp.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
+                        Toast toast1 = Toast.makeText(MainActivity.this,
+                                "ScreenShot saved as " + Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + "image_" + generateDateInfo() + ".bmp", Toast.LENGTH_LONG);
+                        //顯示Toast
+                        toast1.show();
+                        // PNG is a lossless format, the compression factor (100) is ignored
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    //Is recording
+                } else {
+                    //Finish video recording if is recording
+                    //Recording message
+                    Toast toast2 = Toast.makeText(MainActivity.this,
+                            "End recording...", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast2.show();
+                    //button_startRecord.setText("START RECORDING");
+
+                    //empty the recorder before stop
+                    mOpenCvCameraView.setRecorder(null);
+                    RecordingHandler.stopRecord();
+                    button_startRecord.setImageResource(R.drawable.button_startrecording);
+                    isRecording = false;
+                }
+                break;
+
+            case R.id.button_pauseObjectDetection:
+                //testing button
+                if (objectDetectionFeature == true) {
+                    stopObjectDetection();
+
+                    //button change to continue
+                    button_pauseObjectDetection.setImageResource(R.drawable.button_continue_50x50);
+                } else {
+                    //
+                    objectDetectionFeature = true;
+                    button_pauseObjectDetection.setImageResource(R.drawable.button_pause_50x50);
+                }
+                break;
+
+            case R.id.button_setting:
+                //testing button
+                Intent settingPageIntent = new Intent(v.getContext(), SettingsActivity.class);
+                startActivity(settingPageIntent);
+                break;
+
+            case R.id.modeSwitch:
+                //isChecked = clicked/ball move to the right
+                //Turn on object detection feature
+                if (modeSwitch.isChecked()) {
+                    resetTracker();
+
+                    objectDetectionFeature = true;
+
+                    //testing
+                    testMat = null;
+                    optimizeObjectMat = null;
+
+                    //Display/Hide unused button/view
+                    trackingOverlay.setVisibility(View.VISIBLE);
+                    button_pauseObjectDetection.setVisibility(View.VISIBLE);
+                    detectedObjectSpinner.setVisibility(View.VISIBLE);
+
+                    DragRegionView.setVisibility(View.GONE);
+                    button_startTrack.setVisibility(View.GONE);
+                    button_resetTrack.setVisibility(View.GONE);
+
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Object Detection mode has turned ON.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+                } else {
+                    resetTracker();
+                    objectDetectionFeature = false;
+
+                    //Display/Hide unused button/view
+                    trackingOverlay.setVisibility(View.GONE);
+                    button_pauseObjectDetection.setVisibility(View.GONE);
+                    detectedObjectSpinner.setVisibility(View.GONE);
+
+                    DragRegionView.setVisibility(View.VISIBLE);
+                    button_startTrack.setVisibility(View.VISIBLE);
+                    button_resetTrack.setVisibility(View.VISIBLE);
+
+                    DragRegionView.setEnabled(true);
+
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Object Detection mode has turned OFF.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+                }
+                break;
+        }
+    }
+
 }

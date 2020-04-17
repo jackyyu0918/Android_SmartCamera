@@ -42,13 +42,13 @@
     <ImageButton
         android:id="@+id/button_startRecord"
         android:layout_width="100dp"
-        android:layout_height="wrap_content"
+        android:layout_height="100dp"
         android:layout_marginEnd="48dp"
         android:layout_marginBottom="15dp"
+        android:src="@drawable/button_startrecording"
         android:background="@drawable/round_button"
         android:elevation="3dp"
-        android:src="@drawable/button_startrecording"
-        opencv:layout_constraintBottom_toTopOf="@+id/button_fullView"
+        opencv:layout_constraintBottom_toTopOf="@id/button_resetTracker"
         opencv:layout_constraintEnd_toEndOf="parent" />
 
     <Button
@@ -56,21 +56,22 @@
         android:layout_width="80dp"
         android:layout_height="56dp"
         android:layout_marginEnd="48dp"
-        android:layout_marginBottom="20dp"
+        android:layout_marginBottom="15dp"
         android:elevation="3dp"
         android:text="@string/resetButtonText"
-        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintBottom_toTopOf="@id/button_fullView"
         opencv:layout_constraintEnd_toEndOf="parent" />
 
-    <Button
+    <ImageButton
         android:id="@+id/button_startTrack"
-        android:layout_width="92dp"
+        android:layout_width="56dp"
         android:layout_height="56dp"
         android:layout_marginEnd="10dp"
-        android:layout_marginBottom="20dp"
+        android:layout_marginBottom="15dp"
+        android:background="@drawable/round_button"
         android:elevation="3dp"
-        android:text="@string/startButtonText"
-        opencv:layout_constraintBottom_toBottomOf="parent"
+        android:src="@drawable/button_objecttracking"
+        opencv:layout_constraintBottom_toTopOf="@id/button_fullView"
         opencv:layout_constraintEnd_toStartOf="@+id/button_resetTracker" />
 
     <Spinner
@@ -94,11 +95,11 @@
         android:layout_width="182dp"
         android:layout_height="56dp"
         android:layout_marginEnd="48dp"
-        android:layout_marginBottom="15dp"
+        android:layout_marginBottom="20dp"
+        android:elevation="3dp"
         android:text="@string/switchModeButtonText"
-        opencv:layout_constraintBottom_toTopOf="@+id/button_resetTracker"
-        opencv:layout_constraintEnd_toEndOf="parent"
-        android:elevation="3dp"/>
+        opencv:layout_constraintBottom_toBottomOf="parent"
+        opencv:layout_constraintEnd_toEndOf="parent" />
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/modeSwitch"
