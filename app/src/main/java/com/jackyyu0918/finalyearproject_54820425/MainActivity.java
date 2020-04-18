@@ -33,8 +33,12 @@ import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.Spinner;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.widget.SwitchCompat;
@@ -135,6 +139,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     private DragRegionView DragRegionView;
     OverlayView trackingOverlay;
 
+    private boolean isDisplayInferenceTime = false;
+    private boolean isDisplayThread = false;
+    private RelativeLayout threadlayout;
+    private LinearLayout inferenceTimeLayout;
+
     //Switch
     // for switching manual mode and object detection mode
     private SwitchCompat modeSwitch;
@@ -142,10 +151,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     //Spinner for object detected
     Spinner detectedObjectSpinner = null;
 
+    private ImageView plusImageView, minusImageView;
+
+    private TextView threadsTextView;
+    protected TextView inferenceTimeTextView;
+
     //===============Media Recorder=====================//
     private RecordingHandler RecordingHandler;
     private boolean isRecording = false;
-
 
     //True  = Object detection mode, auto detect object
     //False = ManualMode, user drag out the boundary
@@ -287,10 +300,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
             ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_ALL);
         }
 
+        //Load Preference (Setting)
+        PreferenceManager.setDefaultValues(this, R.xml.root_preferences, false);
+
         //======Tracker section=======//
-        //roiRect2d setting
-
-
         trackingHandler = TrackingHandler.getInstance();
 
         //========End of Tracker section=========//
@@ -351,9 +364,31 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         //spinner tracker selection
         detectedObjectSpinner = findViewById(R.id.detectedObjectSpinner);
 
+        //button for adding/minusing thread
+        threadsTextView = findViewById(R.id.threads);
+        plusImageView = findViewById(R.id.plus);
+        minusImageView = findViewById(R.id.minus);
+
+        plusImageView.setOnClickListener(this);
+        minusImageView.setOnClickListener(this);
+
         //final ArrayAdapter<String> nameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.trackingAlgorithmName));
         //nameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         //trackerSpinner.setAdapter(nameAdaptar);
+
+        //Thread related view
+        threadlayout = findViewById(R.id.threadLayout);
+        inferenceTimeLayout = findViewById(R.id.inferenceTimeLayout);
+        inferenceTimeTextView = findViewById(R.id.inference_info);
+
+        //Null object!
+        if(getValueFromPerference("inferencetime", MainActivity.this).equals("Hide"))
+            isDisplayInferenceTime = false;
+        else isDisplayInferenceTime = true;
+
+        if(getValueFromPerference("threaddisplay", MainActivity.this).equals("Hide"))
+            isDisplayThread = false;
+        else isDisplayThread = true;
 
         final List<String> detectedItemList = new ArrayList<String>();
 
@@ -740,43 +775,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         }
     }
 
-    /*
-    //Thread function on click, ignore
-    @Override
-    public void onClick(View v) {
-        if (v.getId() == R.id.plus) {
-            String threads = threadsTextView.getText().toString().trim();
-            int numThreads = Integer.parseInt(threads);
-            if (numThreads >= 9) return;
-            numThreads++;
-            threadsTextView.setText(String.valueOf(numThreads));
-            setNumThreads(numThreads);
-        } else if (v.getId() == R.id.minus) {
-            String threads = threadsTextView.getText().toString().trim();
-            int numThreads = Integer.parseInt(threads);
-            if (numThreads == 1) {
-                return;
-            }
-            numThreads--;
-            threadsTextView.setText(String.valueOf(numThreads));
-            setNumThreads(numThreads);
-        }
-    }
-     */
-
-    /*
-    protected void showFrameInfo(String frameInfo) {
-        frameValueTextView.setText(frameInfo);
-    }
-
-    protected void showCropInfo(String cropInfo) {
-        cropValueTextView.setText(cropInfo);
-    }
-
     protected void showInference(String inferenceTime) {
         inferenceTimeTextView.setText(inferenceTime);
     }
-     */
+
     protected void onPreviewSizeChosen(final android.util.Size size, final int rotation) {
 
         //Text Size
@@ -919,9 +921,19 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                         RecognizedItemList = mappedRecognitions;
                         trackingOverlay.postInvalidate();
 
+
+
                         computingDetection = false;
 
                         //Display value on screen
+                        runOnUiThread(
+                                new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        showInference(lastProcessingTimeMs + "ms");
+                                    }
+                                });
+
             /*
             runOnUiThread(
                 new Runnable() {
@@ -942,6 +954,15 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
     protected android.util.Size getDesiredPreviewFrameSize() {
         return null;
+    }
+
+    protected void setNumThreads(final int numThreads) {
+        runInBackground(new Runnable() {
+            @Override
+            public void run() {
+                detector.setNumThreads(numThreads);
+            }
+        });
     }
 
     //=====================end of TensorFlow section=================//
@@ -1147,6 +1168,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                     button_pauseObjectDetection.setVisibility(View.VISIBLE);
                     detectedObjectSpinner.setVisibility(View.VISIBLE);
 
+                    if(isDisplayThread) threadlayout.setVisibility(View.VISIBLE);
+
+                    if(isDisplayInferenceTime) inferenceTimeLayout.setVisibility(View.VISIBLE);
+
+
+
                     DragRegionView.setVisibility(View.GONE);
                     button_startTrack.setVisibility(View.GONE);
                     button_resetTrack.setVisibility(View.GONE);
@@ -1163,6 +1190,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                     trackingOverlay.setVisibility(View.GONE);
                     button_pauseObjectDetection.setVisibility(View.GONE);
                     detectedObjectSpinner.setVisibility(View.GONE);
+                    threadlayout.setVisibility(View.GONE);
+                    inferenceTimeLayout.setVisibility(View.GONE);
 
                     DragRegionView.setVisibility(View.VISIBLE);
                     button_startTrack.setVisibility(View.VISIBLE);
@@ -1176,8 +1205,29 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                     toast1.show();
                 }
                 break;
+
+            case R.id.plus:
+                String threads = threadsTextView.getText().toString().trim();
+                int numThreads = Integer.parseInt(threads);
+                if (numThreads >= 9) return;
+                numThreads++;
+                threadsTextView.setText(String.valueOf(numThreads));
+                setNumThreads(numThreads);
+                break;
+
+            case R.id.minus:
+                threads = threadsTextView.getText().toString().trim();
+                numThreads = Integer.parseInt(threads);
+                if (numThreads == 1) {
+                    return;
+                }
+                numThreads--;
+                threadsTextView.setText(String.valueOf(numThreads));
+                setNumThreads(numThreads);
+                break;
+            }
         }
-    }
+
 
     //Grant permission for Camera, Audio and ExternalStorageAccess
     public static boolean hasPermissions(Context context, String... permissions) {
@@ -1197,6 +1247,4 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         String currentDateandTime = sdf.format(new Date());
         return currentDateandTime;
     }
-
-
 }

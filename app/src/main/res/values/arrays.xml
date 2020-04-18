@@ -9,4 +9,24 @@
         <item>MOSSE</item>
         <item>KCF</item>
     </string-array>
+
+    <string-array name="inference_entries">
+        <item>Display</item>
+        <item>Hide</item>
+    </string-array>
+
+    <string-array name="inference_values">
+        <item>Display</item>
+        <item>Hide</item>
+    </string-array>
+
+    <string-array name="thread_entries">
+        <item>Display</item>
+        <item>Hide</item>
+    </string-array>
+
+    <string-array name="thread_values">
+        <item>Display</item>
+        <item>Hide</item>
+    </string-array>
 </resources>

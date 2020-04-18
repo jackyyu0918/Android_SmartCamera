@@ -19,6 +19,25 @@
             app:title="Model version"
             app:summary="coco_ssd_mobilenet_v1_1.0_quant"
            />
+
+        <ListPreference
+            app:key="inferencetime"
+            app:entries="@array/inference_entries"
+            app:entryValues="@array/inference_values"
+            app:title="Display InferenceTime(Latency)"
+            app:defaultValue="Hide"
+            app:useSimpleSummaryProvider="true"
+            />
+
+        <ListPreference
+            app:key="threaddisplay"
+            app:entries="@array/thread_entries"
+            app:entryValues="@array/thread_values"
+            app:title="Display Thread number used"
+            app:defaultValue="Hide"
+            app:useSimpleSummaryProvider="true"
+            />
+
     </PreferenceCategory>
 
     <PreferenceCategory app:title="About the Application">
@@ -33,7 +52,6 @@
             app:title="Copy Right"
             app:summary="Copyright ©2020 Jacky YU. All Rights Reserved."
             />
-
     </PreferenceCategory>
 
 
