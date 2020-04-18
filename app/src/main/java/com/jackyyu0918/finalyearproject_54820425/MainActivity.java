@@ -1,12 +1,10 @@
 package com.jackyyu0918.finalyearproject_54820425;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
@@ -19,7 +17,6 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
-import android.media.MediaRecorder;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -42,7 +39,6 @@ import android.widget.Toast;
 
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 import androidx.preference.PreferenceManager;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -55,20 +51,9 @@ import org.opencv.core.CvException;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
-import org.opencv.core.Rect;
-import org.opencv.core.Rect2d;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
-import org.opencv.tracking.Tracker;
-import org.opencv.tracking.TrackerBoosting;
-import org.opencv.tracking.TrackerCSRT;
-import org.opencv.tracking.TrackerGOTURN;
-import org.opencv.tracking.TrackerKCF;
-import org.opencv.tracking.TrackerMIL;
-import org.opencv.tracking.TrackerMOSSE;
-import org.opencv.tracking.TrackerMedianFlow;
-import org.opencv.tracking.TrackerTLD;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -88,7 +73,7 @@ import com.jackyyu0918.finalyearproject_54820425.env.*;
 import com.jackyyu0918.finalyearproject_54820425.tracking.MultiBoxTracker;
 
 //Media Recorder
-import com.jackyyu0918.finalyearproject_54820425.RecordingHandler;
+
 
 public class MainActivity extends Activity implements CvCameraViewListener2, View.OnClickListener {
     private static final String TAG = "OCVSample::Activity";
@@ -99,50 +84,37 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     private MenuItem mItemSwitchCamera = null;
 
     //--------------------Class Field-----------------//
-    //View object
-    private DragRegionView DragRegionView;
-    OverlayView trackingOverlay;
+    //Permission
+    int PERMISSION_ALL = 1;
 
+    //==============Camera info====================//
+    private Camera camera;
+    private byte[] bytes;
+
+    //==============Tracker variable===============//
     //Matrix
     private Mat mRgba;
-
     private Mat mGray;
     private Mat testMat;
-    private Mat videoMat;
 
     private Mat targetObjectMat;
     private Mat zoomWindowMat;
     private Mat optimizeObjectMat;
 
     //Tracker
-    private Tracker objectTracker;
+    //===============Tracker=================//
+    private TrackingHandler trackingHandler;
     private boolean isInitTracker = false;
-    //TensorFlow MultiBoxTracker
-    private MultiBoxTracker multiBoxTracker;
-
-    //Tracking result
-    private List<Classifier.Recognition> RecognizedItemList = null;
-    private Classifier.Recognition selectedRecognizedItem = null;
-
-    private Rect2d roiRect2d;
-    private Rect roiRect;
-    //Tracking object use rect
-    private Rect targetObjectRect;
-
-    //Pre-defined size
-    private Point trackerCoordinate;
-    private Point trackerSize;
-    private Scalar greenColorOutline;
 
 
     //Mode switching
     //false = small window
     private boolean isFullScreen = false;
 
+    //===============View===============//
     //button
     // for init tracker
     private ImageButton button_startTrack;
-    private String currentTrackerType;
 
     // for reset tracker
     private Button button_resetTrack;
@@ -159,6 +131,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     // for going setting page
     private ImageButton button_setting;
 
+    //View object
+    private DragRegionView DragRegionView;
+    OverlayView trackingOverlay;
+
     //Switch
     // for switching manual mode and object detection mode
     private SwitchCompat modeSwitch;
@@ -166,18 +142,16 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     //Spinner for object detected
     Spinner detectedObjectSpinner = null;
 
-    //Media recorder
-    //public MediaRecorder recorder = new MediaRecorder();
+    //===============Media Recorder=====================//
     private RecordingHandler RecordingHandler;
     private boolean isRecording = false;
 
-    //Switch for mode
+
     //True  = Object detection mode, auto detect object
     //False = ManualMode, user drag out the boundary
-    //Default to be false!
     private boolean objectDetectionFeature = false;
 
-    //=================TensorFlowLite interpreter==================//
+    //=============TensorFlowLite variable==============//
     //Camera Activity
     private int[] rgbBytes = null;
     private boolean isProcessingFrame = false;
@@ -204,21 +178,19 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     // Configuration values for the prepackaged SSD model.
     private static final int TF_OD_API_INPUT_SIZE = 300;
     private static final boolean TF_OD_API_IS_QUANTIZED = true;
-    //model name
 
+    //Model and Label
     private static final String TF_OD_API_MODEL_FILE = "detect.tflite";
     private static final String TF_OD_API_LABELS_FILE = "file:///android_asset/labelmap.txt";
 
-
     private static final DetectorMode MODE = DetectorMode.TF_OD_API;
+
     // Minimum detection confidence to track a detection. 0.5/50%
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.5f;
-    //private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
+
     private static final boolean MAINTAIN_ASPECT = false;
 
-    //Hard coded size!? it affect the size of preview, which is the same output as my project
     //private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
-    //phone with 2:1 apsect ratio
     private static final android.util.Size DESIRED_PREVIEW_SIZE = new android.util.Size(1920, 960);
     private static final boolean SAVE_PREVIEW_BITMAP = false;
     private static final float TEXT_SIZE_DIP = 10;
@@ -226,6 +198,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     //Sensor Orientation
     private Integer sensorOrientation;
 
+    //Classifier creates tflite, which is the interpreter
     private Classifier detector;
 
     private long lastProcessingTimeMs;
@@ -242,14 +215,17 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
     private BorderedText borderedText;
 
-    //
-    private Camera camera;
-    private byte[] bytes;
-
     private boolean debug = false;
 
     //Drop down menu variable
     private ArrayAdapter<String> detectedObjectNameAdaptar = null;
+
+    //TensorFlow MultiBoxTracker
+    private MultiBoxTracker multiBoxTracker;
+
+    //Tracking result
+    private List<Classifier.Recognition> RecognizedItemList = null;
+    private Classifier.Recognition selectedRecognizedItem = null;
 
     //----------------------------end of class field----------------------------------//
 
@@ -301,118 +277,29 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         mOpenCvCameraView.setCvCameraViewListener(this);
 
         //Grant permission
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                == PackageManager.PERMISSION_DENIED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1888);
-        }
+        String[] PERMISSIONS = {
+                android.Manifest.permission.CAMERA,
+                android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                android.Manifest.permission.RECORD_AUDIO,
+        };
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                == PackageManager.PERMISSION_DENIED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 112);
-        }
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-                == PackageManager.PERMISSION_DENIED) {
-            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.RECORD_AUDIO}, 120);
+        if (!hasPermissions(this, PERMISSIONS)) {
+            ActivityCompat.requestPermissions(this, PERMISSIONS, PERMISSION_ALL);
         }
 
         //======Tracker section=======//
         //roiRect2d setting
-        greenColorOutline = new Scalar(0, 255, 0, 255);
-        trackerCoordinate = new Point();
-        trackerSize = new Point();
 
-        roiRect2d = new Rect2d();
-        roiRect = new Rect();
-        //tracking rect
-        targetObjectRect = new Rect();
 
-        //tracker creation, base on drop down menu selection
-        //currentTrackerType = "KCF";
+        trackingHandler = TrackingHandler.getInstance();
+
         //========End of Tracker section=========//
 
         //===========Media Recorder section========//
         //Singleton handler
         RecordingHandler = RecordingHandler.getInstance();
 
-        //spinner tracker selection
-        detectedObjectSpinner = findViewById(R.id.detectedObjectSpinner);
-
-        //final ArrayAdapter<String> nameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.trackingAlgorithmName));
-        //nameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        //trackerSpinner.setAdapter(nameAdaptar);
-
-        final List<String> detectedItemList = new ArrayList<String>();
-
-        detectedObjectNameAdaptar = new ArrayAdapter<String>(MainActivity.this, android.R.layout.simple_expandable_list_item_1, detectedItemList);
-        detectedObjectNameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        detectedObjectSpinner.setAdapter(detectedObjectNameAdaptar);
-
-        //onSelectItem
-        detectedObjectSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                //Toast.makeText(MainActivity.this, "You are choosing "+ parent.getSelectedItem().toString() + ".", Toast.LENGTH_SHORT).show() ;
-                //currentTrackerType = parent.getSelectedItem().toString();
-                //System.out.println("currentTrackerType: " + currentTrackerType);
-                Toast.makeText(MainActivity.this, "You are choosing " + parent.getSelectedItem().toString() + ".", Toast.LENGTH_SHORT).show();
-
-                //Already exist selected object, choose another one will trigger reset
-                if (selectedRecognizedItem != null) {
-                    isInitTracker = false;
-                    objectTracker = null;
-                    resetTracker();
-                }
-
-                if (RecognizedItemList != null && position != 0) {
-
-                    selectedRecognizedItem = RecognizedItemList.get(position - 1);
-                    System.out.println("selectedRecognizedItem: " + selectedRecognizedItem.getTitle() + ", Location: " + selectedRecognizedItem.getLocation() + ", Confidence: " + selectedRecognizedItem.getConfidence() + " is selected in the drop-down menu!");
-
-                    //Set view disable
-                    trackingOverlay.setVisibility(View.GONE);
-
-                    //Start object tracking
-                    objectDetectionFeature = false;
-                    resetTracker();
-                    createTracker(getValueFromPerference("trackertype", MainActivity.this));
-                    //createTracker("MOSSE");
-
-                    //get user drag result
-                    setTrackerSize((int) selectedRecognizedItem.getLocation().left, (int) selectedRecognizedItem.getLocation().top, (int) (selectedRecognizedItem.getLocation().right - selectedRecognizedItem.getLocation().left), (int) (selectedRecognizedItem.getLocation().bottom - selectedRecognizedItem.getLocation().top));
-
-                    //tracker initialization
-                    objectTracker.init(mGray, roiRect2d);
-                    //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
-                    isInitTracker = true;
-
-                    //Tracker message
-                    Toast toast1 = Toast.makeText(MainActivity.this,
-                            "Current tracker: " + objectTracker.getClass(), Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast1.show();
-
-                    Toast toast2 = Toast.makeText(MainActivity.this,
-                            "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast2.show();
-
-                    Toast toast3 = Toast.makeText(MainActivity.this,
-                            "Current tracker size: " + roiRect.width + "x" + roiRect.height, Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast3.show();
-                } else {
-                    Toast.makeText(MainActivity.this, "Please select detected object", Toast.LENGTH_SHORT).show();
-                }
-            }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {
-                Toast.makeText(MainActivity.this, "Nothing is selected.", Toast.LENGTH_LONG).show();
-            }
-        });
-
-        //============End of spinner sction==============//
+        //View
         //start button
         button_startTrack = findViewById(R.id.button_startTrack);
         button_startTrack.setOnClickListener(this);
@@ -460,6 +347,79 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         //setting button
         button_setting = findViewById(R.id.button_setting);
         button_setting.setOnClickListener(this);
+
+        //spinner tracker selection
+        detectedObjectSpinner = findViewById(R.id.detectedObjectSpinner);
+
+        //final ArrayAdapter<String> nameAdaptar = new ArrayAdapter<String>(MainActivity.this,android.R.layout.simple_expandable_list_item_1, getResources().getStringArray(R.array.trackingAlgorithmName));
+        //nameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        //trackerSpinner.setAdapter(nameAdaptar);
+
+        final List<String> detectedItemList = new ArrayList<String>();
+
+        detectedObjectNameAdaptar = new ArrayAdapter<String>(MainActivity.this, android.R.layout.simple_expandable_list_item_1, detectedItemList);
+        detectedObjectNameAdaptar.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        detectedObjectSpinner.setAdapter(detectedObjectNameAdaptar);
+
+        //onSelectItem
+        detectedObjectSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                Toast.makeText(MainActivity.this, "You are choosing " + parent.getSelectedItem().toString() + ".", Toast.LENGTH_SHORT).show();
+
+                //Already exist selected object, choose another one will trigger reset
+                if (selectedRecognizedItem != null) {
+                    isInitTracker = false;
+                    trackingHandler.setTracker(null);
+                    trackingHandler.resetTrackerDetails();
+                }
+
+                if (RecognizedItemList != null && position != 0) {
+
+                    selectedRecognizedItem = RecognizedItemList.get(position - 1);
+                    System.out.println("selectedRecognizedItem: " + selectedRecognizedItem.getTitle() + ", Location: " + selectedRecognizedItem.getLocation() + ", Confidence: " + selectedRecognizedItem.getConfidence() + " is selected in the drop-down menu!");
+
+                    //Set view disable
+                    trackingOverlay.setVisibility(View.GONE);
+
+                    //Start object tracking
+                    objectDetectionFeature = false;
+                    trackingHandler.resetTrackerDetails();
+                    trackingHandler.createTracker(getValueFromPerference("trackertype", MainActivity.this));
+
+                    //get user drag result
+                    trackingHandler.setTrackerSize((int) selectedRecognizedItem.getLocation().left, (int) selectedRecognizedItem.getLocation().top, (int) (selectedRecognizedItem.getLocation().right - selectedRecognizedItem.getLocation().left), (int) (selectedRecognizedItem.getLocation().bottom - selectedRecognizedItem.getLocation().top));
+
+                    //tracker initialization
+                    trackingHandler.initializeTracker(mGray);
+                    //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
+                    isInitTracker = true;
+
+                    //Tracker message
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Current tracker: " + trackingHandler.getTracker().getClass(), Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+
+                    Toast toast2 = Toast.makeText(MainActivity.this,
+                            "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast2.show();
+
+                    Toast toast3 = Toast.makeText(MainActivity.this,
+                            "Current tracker size: " + trackingHandler.getroiRect().width + "x" + trackingHandler.getroiRect().height, Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast3.show();
+                } else {
+                    Toast.makeText(MainActivity.this, "Please select detected object", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                Toast.makeText(MainActivity.this, "Nothing is selected.", Toast.LENGTH_LONG).show();
+            }
+        });
 
 
         //=======End of Button Configuration==========//
@@ -615,67 +575,57 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         // if initialized tracker, start update the ROI
         //This is the part of pure tracking
         if (isInitTracker) {
-
             //Pre-defined target window details: x,y,width,height
             //Assign 2d to 1d:
             // 2d: update by tracker
             // 1d: update Rec
-            roiRect.x = (int) roiRect2d.x;
-            roiRect.y = (int) roiRect2d.y;
-            roiRect.width = (int) roiRect2d.width;
-            roiRect.height = (int) roiRect2d.height;
-
-            System.out.println("x,y,width,height: " + (int) roiRect2d.x + ", " + (int) roiRect2d.y + ", " + (int) roiRect2d.width + ", " + (int) roiRect2d.height);
-
+            trackingHandler.sysnRectValue();
 
             //Update tracker information to roiRect2d
             //Why not multi thread, high latency
-            System.out.println("Tracker update result: " + objectTracker.update(mGray, roiRect2d));
+            System.out.println("Tracker update result: " + trackingHandler.updateTracker(mGray));
 
             //make sure target object is inside the screen
-            if (roiRect2d.x + roiRect2d.width > 3000 || roiRect2d.x < 0 || roiRect2d.y < 0 || roiRect2d.y + roiRect2d.height > 1080) {
-                System.out.println("Tracking Failed, target object fall outside screen");
 
+            //Target object matrix frame
+            targetObjectMat = mRgba.submat((int) (trackingHandler.getRoiRect2d().y), (int) (trackingHandler.getRoiRect2d().y + trackingHandler.getRoiRect2d().height), (int) (trackingHandler.getRoiRect2d().x), (int) (trackingHandler.getRoiRect2d().x + trackingHandler.getRoiRect2d().width));
+
+            if (trackingHandler.getRoiRect2d().height >= trackingHandler.getRoiRect2d().width) {
+                //Optimized aspect ratio for video recording (2:1)
+                optimizeObjectMat = mRgba.submat((int) (trackingHandler.getRoiRect2d().y), (int) (trackingHandler.getRoiRect2d().y + trackingHandler.getRoiRect2d().height), (int) (trackingHandler.getRoiRect2d().x + (trackingHandler.getRoiRect2d().width / 2) - trackingHandler.getRoiRect2d().height), (int) (trackingHandler.getRoiRect2d().x + (trackingHandler.getRoiRect2d().width / 2) + trackingHandler.getRoiRect2d().height));
             } else {
-                //Target object matrix frame
-                targetObjectMat = mRgba.submat((int) (roiRect2d.y), (int) (roiRect2d.y + roiRect2d.height), (int) (roiRect2d.x), (int) (roiRect2d.x + roiRect2d.width));
-
-                if (roiRect2d.height >= roiRect2d.width) {
-                    //Optimized aspect ratio for video recording (2:1)
-                    System.out.println("Before crash: " + (int) (roiRect2d.y) + ", " + (int) (roiRect2d.y + roiRect2d.height) + ", " + (int) (roiRect2d.x + (roiRect2d.width / 2) - roiRect2d.height) + ", " + (int) (roiRect2d.x + (roiRect2d.width / 2) + roiRect2d.height));
-                    optimizeObjectMat = mRgba.submat((int) (roiRect2d.y), (int) (roiRect2d.y + roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width / 2) - roiRect2d.height), (int) (roiRect2d.x + (roiRect2d.width / 2) + roiRect2d.height));
-                } else if (roiRect2d.height < roiRect2d.width) {
-                    //Optimized aspect ratio for video recording (2:1)
-                    optimizeObjectMat = mRgba.submat((int) (roiRect2d.y + (roiRect2d.height / 2) - roiRect2d.width / 4), (int) ((roiRect2d.y + (roiRect2d.height / 2) - roiRect2d.width / 4) + roiRect2d.width / 2), (int) (roiRect2d.x), (int) (roiRect2d.x + roiRect2d.width));
-                }
-
-                // Small window preview mode
-                if (isFullScreen == false) {
-                    //top-left corner of mRgba
-                    zoomWindowMat = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
-
-                    //show target matrix at the top-left corner
-                    //Imgproc.resize(targetObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
-                    Imgproc.resize(optimizeObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
-
-                    // Full screen mode (for video recording)
-                } else {
-                    mRgba.copyTo(testMat);
-
-                    //full the screen with target matrix
-                    //Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
-                    Imgproc.resize(optimizeObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
-                    //draw on full screen
-                    Imgproc.rectangle(testMat, roiRect, greenColorOutline, 2);
-                    return testMat;
-                }
+                //Optimized aspect ratio for video recording (2:1)
+                optimizeObjectMat = mRgba.submat((int) (trackingHandler.getRoiRect2d().y + (trackingHandler.getRoiRect2d().height / 2) - trackingHandler.getRoiRect2d().width / 4), (int) ((trackingHandler.getRoiRect2d().y + (trackingHandler.getRoiRect2d().height / 2) - trackingHandler.getRoiRect2d().width / 4) + trackingHandler.getRoiRect2d().width / 2), (int) (trackingHandler.getRoiRect2d().x), (int) (trackingHandler.getRoiRect2d().x + trackingHandler.getRoiRect2d().width));
             }
 
-            Imgproc.rectangle(mRgba, roiRect, greenColorOutline, 2);
-            if (selectedRecognizedItem != null) {
-                Imgproc.putText(mRgba, selectedRecognizedItem.getTitle(), new Point(roiRect.x, roiRect.y), 1, 5, greenColorOutline);
+
+            // Small window preview mode
+            if (isFullScreen == false) {
+                //top-left corner of mRgba
+                zoomWindowMat = mRgba.submat(0, rows / 2 - rows / 10, 0, cols / 2 - cols / 10);
+
+                //show target matrix at the top-left corner
+                //Imgproc.resize(targetObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+                Imgproc.resize(optimizeObjectMat, zoomWindowMat, zoomWindowMat.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+
+                // Full screen mode (for video recording)
             } else {
-                Imgproc.putText(mRgba, "Target Object", new Point(roiRect.x, roiRect.y), 1, 5, greenColorOutline);
+                mRgba.copyTo(testMat);
+
+                //full the screen with target matrix
+                //Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+                Imgproc.resize(optimizeObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
+                //draw on full screen
+                Imgproc.rectangle(testMat, trackingHandler.getroiRect(), trackingHandler.getGreenColorOutline(), 2);
+                return testMat;
+            }
+
+
+            Imgproc.rectangle(mRgba, trackingHandler.getroiRect(), trackingHandler.getGreenColorOutline(), 2);
+            if (selectedRecognizedItem != null) {
+                Imgproc.putText(mRgba, selectedRecognizedItem.getTitle(), new Point(trackingHandler.getroiRect().x, trackingHandler.getroiRect().y), 1, 5, trackingHandler.getGreenColorOutline());
+            } else {
+                Imgproc.putText(mRgba, "Target Object", new Point(trackingHandler.getroiRect().x, trackingHandler.getroiRect().y), 1, 5, trackingHandler.getGreenColorOutline());
             }
         }
 
@@ -685,103 +635,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
     //================End of onCameraPreview=========//
 
+    //Tracker function
     //my own function
-    public void createTracker(String trackerType) {
-        switch (trackerType) {
-            case "KCF":
-                System.out.println("KCF case.");
-                objectTracker = TrackerKCF.create();
-                break;
-            case "MedianFlow":
-                System.out.println("MedianFlow case.");
-                objectTracker = TrackerMedianFlow.create();
-                break;
-            case "TLD":
-                System.out.println("TLD case.");
-                objectTracker = TrackerTLD.create();
-                break;
-            case "Boosting":
-                System.out.println("Boosting case.");
-                objectTracker = TrackerBoosting.create();
-                break;
-            case "CSRT":
-                System.out.println("CSRT case.");
-                objectTracker = TrackerCSRT.create();
-                break;
-            case "GOTURN":
-                System.out.println("GOTURN case.");
-                objectTracker = TrackerGOTURN.create();
-                break;
-            case "MIL":
-                System.out.println("MIL case.");
-                objectTracker = TrackerMIL.create();
-                break;
-            case "MOSSE":
-                System.out.println("MOSSE case.");
-                objectTracker = TrackerMOSSE.create();
-                break;
-            default:
-                break;
-        }
-    }
-
-    public void setTrackerSize(int x, int y, int width, int height) {
-        roiRect.x = x;
-        roiRect.y = y;
-        roiRect.width = width;
-        roiRect.height = height;
-
-        roiRect2d.x = x;
-        roiRect2d.y = y;
-        roiRect2d.width = width;
-        roiRect2d.height = height;
-    }
-
-    public void resetTracker() {
-        isInitTracker = false;
-        trackerCoordinate = new Point();
-        trackerSize = new Point();
-
-        roiRect.x = (int) trackerCoordinate.x;
-        roiRect.y = (int) trackerCoordinate.y;
-        roiRect.width = (int) trackerSize.x;
-        roiRect.height = (int) trackerSize.y;
-
-        roiRect2d.x = trackerCoordinate.x;
-        roiRect2d.y = trackerCoordinate.y;
-        roiRect2d.width = trackerSize.x;
-        roiRect2d.height = trackerSize.y;
-    }
-
-    //Set rectangle info from drag class
-    public void calculateRectInfo(android.graphics.Point[] points) {
-            /*
-            trackerCoordinate = new Point(points[0].x+40,points[0].y+20);
-            trackerSize = new Point((points[2].x+40) - (points[0].x+40),(points[2].y+20) - (points[0].y+20));
-            roiRect2d = new Rect2d(trackerCoordinate.x,trackerCoordinate.y,trackerSize.x,trackerSize.y);
-            roiRect = new Rect((int)trackerCoordinate.x,(int)trackerCoordinate.y,(int)trackerSize.x,(int)trackerSize.y);
-             */
-
-        trackerCoordinate.x = points[0].x + 40;
-        trackerCoordinate.y = points[0].y + 20;
-        trackerSize.x = ((points[2].x + 40) - (points[0].x + 40));
-        trackerSize.y = ((points[2].y + 20) - (points[0].y + 20));
-
-        roiRect2d.x = trackerCoordinate.x;
-        roiRect2d.y = trackerCoordinate.y;
-        roiRect2d.width = trackerSize.x;
-        roiRect2d.height = trackerSize.y;
-
-        roiRect.x = (int) trackerCoordinate.x;
-        roiRect.y = (int) trackerCoordinate.y;
-        roiRect.width = (int) trackerSize.x;
-        roiRect.height = (int) trackerSize.y;
-
-        Toast toast1 = Toast.makeText(MainActivity.this,
-                "Press start to track object", Toast.LENGTH_LONG);
-        //顯示Toast
-        toast1.show();
-    }
 
 
     //===========TensorFlowLite==========//
@@ -801,52 +656,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
             handler.post(r);
         }
     }
-
-    //Permission issue, solved
-    /*
-    @Override
-    public void onRequestPermissionsResult(
-            final int requestCode, final String[] permissions, final int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == PERMISSIONS_REQUEST) {
-            if (allPermissionsGranted(grantResults)) {
-                setFragment();
-            } else {
-                requestPermission();
-            }
-        }
-    }
-
-    private static boolean allPermissionsGranted(final int[] grantResults) {
-        for (int result : grantResults) {
-            if (result != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean hasPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED;
-        } else {
-            return true;
-        }
-    }
-
-    private void requestPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (shouldShowRequestPermissionRationale(PERMISSION_CAMERA)) {
-                Toast.makeText(
-                        CameraActivity.this,
-                        "Camera permission is required for this demo",
-                        Toast.LENGTH_LONG)
-                        .show();
-            }
-            requestPermissions(new String[] {PERMISSION_CAMERA}, PERMISSIONS_REQUEST);
-        }
-    }
-     */
 
     // Returns true if the device supports the required hardware level, or better.
     private boolean isHardwareLevelSupported(
@@ -894,38 +703,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
         return null;
     }
-
-    //Set Fragment, connect image to the canvas
-    /*
-    protected void setFragment() {
-        String cameraId = chooseCamera();
-
-        Fragment fragment;
-        if (useCamera2API) {
-            CameraConnectionFragment camera2Fragment =
-                    CameraConnectionFragment.newInstance(
-                            new CameraConnectionFragment.ConnectionCallback() {
-                                @Override
-                                public void onPreviewSizeChosen(final android.util.Size size, final int rotation) {
-                                    previewHeight = size.getHeight();
-                                    previewWidth = size.getWidth();
-                                    CameraActivity.this.onPreviewSizeChosen(size, rotation);
-                                }
-                            },
-                            this,
-                            getLayoutId(),
-                            getDesiredPreviewFrameSize());
-
-            camera2Fragment.setCamera(cameraId);
-            fragment = camera2Fragment;
-        } else {
-            fragment =
-                    new LegacyCameraConnectionFragment(this, getLayoutId(), getDesiredPreviewFrameSize());
-        }
-
-        getFragmentManager().beginTransaction().replace(R.id.container, fragment).commit();
-    }
-     */
 
     protected void fillBytes(final Image.Plane[] planes, final byte[][] yuvBytes) {
         // Because of the variable row stride it's not possible to know in
@@ -1167,7 +944,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         return null;
     }
 
-    //Pass location to Tracker
+    //=====================end of TensorFlow section=================//
 
     //Stop object detection feature
     //Can pause the object detection action
@@ -1207,21 +984,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         detectedObjectNameAdaptar.notifyDataSetChanged();
     }
 
-
-    //=========================Media Recorder====================//
-    //Media Recorder function
-
-
-
-
-    public String generateDateInfo() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
-        String currentDateandTime = sdf.format(new Date());
-        return currentDateandTime;
-    }
-
-    //=========================End of Media Recorder====================//
-
     //Get value from shared preference (Setting)
     public static String getValueFromPerference(String key, Context context) {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(context);
@@ -1244,21 +1006,21 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                         toast1.show();
                     } else {
                         //Dynamic tracker Will be implemented in setting
-                        createTracker(getValueFromPerference("trackertype", MainActivity.this));
+                        trackingHandler.createTracker(getValueFromPerference("trackertype", MainActivity.this));
                         //createTracker("MOSSE");
 
 
                         //get user drag result
-                        calculateRectInfo(DragRegionView.points);
+                        trackingHandler.calculateRectInfo(DragRegionView.points);
 
                         //tracker initialization
-                        objectTracker.init(mGray, roiRect2d);
+                        trackingHandler.initializeTracker(mGray);
                         //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
                         isInitTracker = true;
 
                         //Tracker message
                         Toast toast1 = Toast.makeText(MainActivity.this,
-                                "Current tracker: " + objectTracker.getClass() + ", camera size: \" + mOpenCvCameraView.getWidth() + \"x\" + mOpenCvCameraView.getHeight()", Toast.LENGTH_LONG);
+                                "Current tracker: " + trackingHandler.getTracker().getClass() + ", camera size: \" + mOpenCvCameraView.getWidth() + \"x\" + mOpenCvCameraView.getHeight()", Toast.LENGTH_LONG);
                         //顯示Toast
                         toast1.show();
 
@@ -1266,7 +1028,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                         DragRegionView.invalidate();
 
                         Toast toast2 = Toast.makeText(MainActivity.this,
-                                "Current tracker size: " + roiRect.width + "x" + roiRect.height, Toast.LENGTH_LONG);
+                                "Current tracker size: " + trackingHandler.getroiRect().width + "x" + trackingHandler.getroiRect().height, Toast.LENGTH_LONG);
                         //顯示Toast
                         toast2.show();
                     }
@@ -1288,10 +1050,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
             case R.id.button_resetTracker:
                 isInitTracker = false;
-                objectTracker = null;
+                trackingHandler.setTracker(null);
+                trackingHandler.resetTrackerDetails();
 
-                //new 2:1 size
-                resetTracker();
                 DragRegionView.isReset = true;
                 DragRegionView.invalidate();
                 //testing****
@@ -1373,7 +1134,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 //isChecked = clicked/ball move to the right
                 //Turn on object detection feature
                 if (modeSwitch.isChecked()) {
-                    resetTracker();
+                    trackingHandler.resetTrackerDetails();
 
                     objectDetectionFeature = true;
 
@@ -1395,7 +1156,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                     //顯示Toast
                     toast1.show();
                 } else {
-                    resetTracker();
+                    trackingHandler.resetTrackerDetails();
                     objectDetectionFeature = false;
 
                     //Display/Hide unused button/view
@@ -1417,5 +1178,25 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 break;
         }
     }
+
+    //Grant permission for Camera, Audio and ExternalStorageAccess
+    public static boolean hasPermissions(Context context, String... permissions) {
+        if (context != null && permissions != null) {
+            for (String permission : permissions) {
+                if (ActivityCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    //Generate time stamp for output file
+    public String generateDateInfo() {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
+        String currentDateandTime = sdf.format(new Date());
+        return currentDateandTime;
+    }
+
 
 }

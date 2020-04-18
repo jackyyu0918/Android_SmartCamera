@@ -25,7 +25,7 @@
         <Preference
             app:key="developer"
             app:title="Developer"
-            app:summary="Jacky YU (54820425) \n Email address: kakityu-6@my.cityu.edu.hk"
+            app:summary="Jacky YU (54820425) \n Email address: kakityu-6@my.cityu.edu.hk \n Supervised by Dr. Antoni Chan"
             />
 
         <Preference
