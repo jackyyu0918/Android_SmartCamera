@@ -35,7 +35,7 @@ public class RecordingHandler {
         //Store the video with time stamp
         String currentDateandTime = generateDateInfo();
 
-        recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + currentDateandTime + ".mp4");
+        recorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/Video/" + currentDateandTime + ".mp4");
         recorder.setVideoEncodingBitRate(1000000);
         recorder.setVideoFrameRate(60);
         recorder.setVideoSize(mOpenCvCameraView.getWidth(), mOpenCvCameraView.getHeight());

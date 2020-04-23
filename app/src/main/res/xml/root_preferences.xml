@@ -25,8 +25,8 @@
             app:entries="@array/inference_entries"
             app:entryValues="@array/inference_values"
             app:title="Display InferenceTime(Latency)"
-            app:defaultValue="Hide"
             app:useSimpleSummaryProvider="true"
+            app:defaultValue="Hide"
             />
 
         <ListPreference
@@ -34,8 +34,8 @@
             app:entries="@array/thread_entries"
             app:entryValues="@array/thread_values"
             app:title="Display Thread number used"
-            app:defaultValue="Hide"
             app:useSimpleSummaryProvider="true"
+            app:defaultValue="Hide"
             />
 
     </PreferenceCategory>

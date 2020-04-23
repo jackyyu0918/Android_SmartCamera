@@ -170,7 +170,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
     //True  = Object detection mode, auto detect object
     //False = ManualMode, user drag out the boundary
-    private boolean objectDetectionFeature = false;
+    private boolean objectDetectionFeature = true;
 
     //=============TensorFlowLite variable==============//
     //Camera Activity
@@ -415,14 +415,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
                     //Set view disable
                     trackingOverlay.setVisibility(View.GONE);
+                    button_pauseObjectDetection.setVisibility(View.GONE);
 
                     //stop object tracking
                     objectDetectionFeature = false;
                     trackingHandler.resetTrackerDetails();
                     trackingHandler.createTracker(getValueFromPerference("trackertype", MainActivity.this));
-
-                    //get user drag result
                     trackingHandler.setTrackerSize((int) selectedRecognizedItem.getLocation().left, (int) selectedRecognizedItem.getLocation().top, (int) (selectedRecognizedItem.getLocation().right - selectedRecognizedItem.getLocation().left), (int) (selectedRecognizedItem.getLocation().bottom - selectedRecognizedItem.getLocation().top));
+
 
                     //tracker initialization
                     trackingHandler.initializeTracker(mGray);
@@ -431,19 +431,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
                     //Tracker message
                     Toast toast1 = Toast.makeText(MainActivity.this,
-                            "Current tracker: " + trackingHandler.getTracker().getClass(), Toast.LENGTH_LONG);
+                            "Current tracker: " + trackingHandler.getTracker().getClass() + "\n \nTracker size: " + trackingHandler.getroiRect().width + "x" + trackingHandler.getroiRect().height, Toast.LENGTH_LONG);
                     //顯示Toast
                     toast1.show();
-
-                    Toast toast2 = Toast.makeText(MainActivity.this,
-                            "Current camera size: " + mOpenCvCameraView.getWidth() + "x" + mOpenCvCameraView.getHeight(), Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast2.show();
-
-                    Toast toast3 = Toast.makeText(MainActivity.this,
-                            "Current tracker size: " + trackingHandler.getroiRect().width + "x" + trackingHandler.getroiRect().height, Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast3.show();
                 } else {
                     Toast.makeText(MainActivity.this, "Please select detected object", Toast.LENGTH_SHORT).show();
                 }
@@ -985,6 +975,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
             //Get the List of Recognized Item
             System.out.println("RecognizedItemList.size(): " + RecognizedItemList.size());
             updateSpinnerMenu();
+
+            handlerThread = new HandlerThread("inference");
+            handlerThread.start();
+            handler = new Handler(handlerThread.getLooper());
         }
 
     }
@@ -992,7 +986,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     protected void updateSpinnerMenu() {
         //Add item to drop down list and refresh
         detectedObjectNameAdaptar.clear();
+
+        // position 0 is used for please select
         detectedObjectNameAdaptar.add("Please select detected object");
+
         for (Classifier.Recognition result : RecognizedItemList) {
             detectedObjectNameAdaptar.add(result.getTitle() + " " + result.getConfidence() * 100 + "%");
 
@@ -1076,9 +1073,13 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 //System.out.println("Coordinate: " + DragRegionView.points[0] + DragRegionView.points[1] + DragRegionView.points[2] + DragRegionView.points[3]);
 
                 //Automatic mode?
-                if(objectDetectionFeature == false && modeSwitch.isChecked()){
+                if(objectDetectionFeature == false && !modeSwitch.isChecked()){
                     objectDetectionFeature = true;
                     rgbBytes = null;
+                    selectedRecognizedItem = null;
+                    detectedObjectNameAdaptar.clear();
+                    trackingOverlay.setVisibility(View.VISIBLE);
+                    button_pauseObjectDetection.setVisibility(View.VISIBLE);
                 }
                 break;
 
@@ -1086,29 +1087,28 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 //Photo shooting/ScreenShot
                 if (isRecording == false) {
                     Mat captureMatrix = null;
-                    if (isInitTracker) {
-                        captureMatrix = testMat;
-                    } else {
+                    if (isFullScreen == false) {
                         captureMatrix = mRgba;
+                    } else {
+                        captureMatrix = testMat;
                     }
 
                     Bitmap bmp = Bitmap.createBitmap(captureMatrix.width(), captureMatrix.height(), Bitmap.Config.ARGB_8888);
-                    Mat tmp = new Mat(captureMatrix.width(), captureMatrix.height(), CvType.CV_8UC1, new Scalar(4));
-                    System.out.println("tmp: " + tmp + ", bmp: " + bmp);
-
                     //converting matrix to Bmp
                     try {
-                        Imgproc.cvtColor(captureMatrix, tmp, Imgproc.COLOR_GRAY2RGBA, 4);
+                        //Imgproc.cvtColor(captureMatrix, tmp, Imgproc.COLOR_GRAY2RGBA, 4);
                         Utils.matToBitmap(captureMatrix, bmp);
                     } catch (CvException e) {
                         Log.d("Exception", e.getMessage());
                     }
 
                     //Store bitmap to local storage
-                    try (FileOutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + "image_" + generateDateInfo() + ".bmp")) {
+                    try (FileOutputStream out = new FileOutputStream(Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/Photo/" + "image_" + generateDateInfo() + ".bmp")) {
                         bmp.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
+
+
                         Toast toast1 = Toast.makeText(MainActivity.this,
-                                "ScreenShot saved as " + Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/" + "image_" + generateDateInfo() + ".bmp", Toast.LENGTH_LONG);
+                                "ScreenShot saved as " + Environment.getExternalStorageDirectory().getAbsoluteFile() + File.separator + "/FYP/Photo/" + "image_" + generateDateInfo() + ".bmp", Toast.LENGTH_LONG);
                         //顯示Toast
                         toast1.show();
                         // PNG is a lossless format, the compression factor (100) is ignored
@@ -1135,15 +1135,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
             case R.id.button_pauseObjectDetection:
                 //testing button
-                if (objectDetectionFeature == true) {
+                if (objectDetectionFeature == true){
                     stopObjectDetection();
-                    //button change to continue
-                    button_pauseObjectDetection.setImageResource(R.drawable.button_continue_50x50);
-                } else {
-                    //
-                    objectDetectionFeature = true;
-                    button_pauseObjectDetection.setImageResource(R.drawable.button_pause_50x50);
+                    button_pauseObjectDetection.setVisibility(View.GONE);
                 }
+                    //button change to continue
+
                 break;
 
             case R.id.button_setting:
@@ -1156,6 +1153,28 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 //isChecked = clicked/ball move to the right
                 //Turn on object detection feature
                 if (modeSwitch.isChecked()) {
+                    trackingHandler.resetTrackerDetails();
+                    objectDetectionFeature = false;
+
+                    //Display/Hide unused button/view
+                    trackingOverlay.setVisibility(View.GONE);
+                    button_pauseObjectDetection.setVisibility(View.GONE);
+                    detectedObjectSpinner.setVisibility(View.GONE);
+                    threadlayout.setVisibility(View.GONE);
+                    inferenceTimeLayout.setVisibility(View.GONE);
+
+                    DragRegionView.setVisibility(View.VISIBLE);
+                    button_startTrack.setVisibility(View.VISIBLE);
+                    button_resetTrack.setVisibility(View.VISIBLE);
+
+                    DragRegionView.setEnabled(true);
+
+                    Toast toast1 = Toast.makeText(MainActivity.this,
+                            "Manual mode has turned ON.", Toast.LENGTH_LONG);
+                    //顯示Toast
+                    toast1.show();
+
+                } else {
                     trackingHandler.resetTrackerDetails();
                     objectDetectionFeature = true;
 
@@ -1176,28 +1195,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                     //button_resetTrack.setVisibility(View.GONE);
 
                     Toast toast1 = Toast.makeText(MainActivity.this,
-                            "Object Detection mode has turned ON.", Toast.LENGTH_LONG);
-                    //顯示Toast
-                    toast1.show();
-                } else {
-                    trackingHandler.resetTrackerDetails();
-                    objectDetectionFeature = false;
-
-                    //Display/Hide unused button/view
-                    trackingOverlay.setVisibility(View.GONE);
-                    button_pauseObjectDetection.setVisibility(View.GONE);
-                    detectedObjectSpinner.setVisibility(View.GONE);
-                    threadlayout.setVisibility(View.GONE);
-                    inferenceTimeLayout.setVisibility(View.GONE);
-
-                    DragRegionView.setVisibility(View.VISIBLE);
-                    button_startTrack.setVisibility(View.VISIBLE);
-                    button_resetTrack.setVisibility(View.VISIBLE);
-
-                    DragRegionView.setEnabled(true);
-
-                    Toast toast1 = Toast.makeText(MainActivity.this,
-                            "Object Detection mode has turned OFF.", Toast.LENGTH_LONG);
+                            "Manual mode has turned OFF.", Toast.LENGTH_LONG);
                     //顯示Toast
                     toast1.show();
                 }

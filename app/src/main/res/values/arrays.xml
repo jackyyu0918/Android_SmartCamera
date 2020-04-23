@@ -13,22 +13,22 @@
     </string-array>
 
     <string-array name="inference_entries">
-        <item>Display</item>
         <item>Hide</item>
+        <item>Display</item>
     </string-array>
 
     <string-array name="inference_values">
-        <item>Display</item>
         <item>Hide</item>
+        <item>Display</item>
     </string-array>
 
     <string-array name="thread_entries">
-        <item>Display</item>
         <item>Hide</item>
+        <item>Display</item>
     </string-array>
 
     <string-array name="thread_values">
-        <item>Display</item>
         <item>Hide</item>
+        <item>Display</item>
     </string-array>
 </resources>
