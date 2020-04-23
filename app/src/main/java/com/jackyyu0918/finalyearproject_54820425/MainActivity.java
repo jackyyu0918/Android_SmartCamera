@@ -55,6 +55,7 @@ import org.opencv.core.CvException;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.Point;
+import org.opencv.core.Rect2d;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
@@ -105,10 +106,17 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     private Mat zoomWindowMat;
     private Mat optimizeObjectMat;
 
+    private Rect2d targetObjectRect2d = null;
+    private double targetObject_x;
+    private double targetObject_y;
+    private double targetObject_width;
+    private double targetObject_height;
+
     //Tracker
     //===============Tracker=================//
     private TrackingHandler trackingHandler;
     private boolean isInitTracker = false;
+    private int borderThicknessInt = 2;
 
 
     //Mode switching
@@ -381,15 +389,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         inferenceTimeLayout = findViewById(R.id.inferenceTimeLayout);
         inferenceTimeTextView = findViewById(R.id.inference_info);
 
-        //Null object!
-        if(getValueFromPerference("inferencetime", MainActivity.this).equals("Hide"))
-            isDisplayInferenceTime = false;
-        else isDisplayInferenceTime = true;
-
-        if(getValueFromPerference("threaddisplay", MainActivity.this).equals("Hide"))
-            isDisplayThread = false;
-        else isDisplayThread = true;
-
         final List<String> detectedItemList = new ArrayList<String>();
 
         detectedObjectNameAdaptar = new ArrayAdapter<String>(MainActivity.this, android.R.layout.simple_expandable_list_item_1, detectedItemList);
@@ -417,7 +416,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                     //Set view disable
                     trackingOverlay.setVisibility(View.GONE);
 
-                    //Start object tracking
+                    //stop object tracking
                     objectDetectionFeature = false;
                     trackingHandler.resetTrackerDetails();
                     trackingHandler.createTracker(getValueFromPerference("trackertype", MainActivity.this));
@@ -427,8 +426,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
                     //tracker initialization
                     trackingHandler.initializeTracker(mGray);
-                    //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
                     isInitTracker = true;
+                    //System.out.println("Tracker init result: " + firstTracker.init(mGray,roiRect2d));
 
                     //Tracker message
                     Toast toast1 = Toast.makeText(MainActivity.this,
@@ -460,7 +459,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         //=======End of Button Configuration==========//
 
         //Sensor View at top
-        DragRegionView = (DragRegionView) findViewById(R.id.SensorView);
+        DragRegionView = findViewById(R.id.SensorView);
 
         //Switch
         modeSwitch = findViewById(R.id.modeSwitch);
@@ -468,7 +467,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
         //Overlay View for object tracking
         //For drawing rectangle
-        trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
+        trackingOverlay = findViewById(R.id.tracking_overlay);
     }
 
     @Override
@@ -516,7 +515,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
     public void onCameraViewStarted(int width, int height) {
         mGray = new Mat();
         mRgba = new Mat();
-        testMat = new Mat();
+        //testMat = new Mat();
         targetObjectMat = new Mat();
         zoomWindowMat = new Mat();
         optimizeObjectMat = new Mat();
@@ -608,7 +607,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
         //============Standard Tracking section======================//
         // if initialized tracker, start update the ROI
-        //This is the part of pure tracking
         if (isInitTracker) {
             //Pre-defined target window details: x,y,width,height
             //Assign 2d to 1d:
@@ -625,12 +623,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
             //Target object matrix frame
             targetObjectMat = mRgba.submat((int) (trackingHandler.getRoiRect2d().y), (int) (trackingHandler.getRoiRect2d().y + trackingHandler.getRoiRect2d().height), (int) (trackingHandler.getRoiRect2d().x), (int) (trackingHandler.getRoiRect2d().x + trackingHandler.getRoiRect2d().width));
 
-            if (trackingHandler.getRoiRect2d().height >= trackingHandler.getRoiRect2d().width) {
+            targetObjectRect2d = trackingHandler.getRoiRect2d();
+
+
+            targetObject_x = trackingHandler.getRoiRect2d().x;
+            targetObject_y = trackingHandler.getRoiRect2d().y;
+            targetObject_width = trackingHandler.getRoiRect2d().width;
+            targetObject_height = trackingHandler.getRoiRect2d().height;
+
+            if (targetObject_height >= targetObject_width) {
                 //Optimized aspect ratio for video recording (2:1)
-                optimizeObjectMat = mRgba.submat((int) (trackingHandler.getRoiRect2d().y), (int) (trackingHandler.getRoiRect2d().y + trackingHandler.getRoiRect2d().height), (int) (trackingHandler.getRoiRect2d().x + (trackingHandler.getRoiRect2d().width / 2) - trackingHandler.getRoiRect2d().height), (int) (trackingHandler.getRoiRect2d().x + (trackingHandler.getRoiRect2d().width / 2) + trackingHandler.getRoiRect2d().height));
+                optimizeObjectMat = mRgba.submat((int) (targetObject_y), (int) (targetObject_y + targetObject_height), (int) (trackingHandler.getRoiRect2d().x + (targetObject_width / 2) - targetObject_height), (int) (trackingHandler.getRoiRect2d().x + (targetObject_width / 2) + targetObject_height));
             } else {
                 //Optimized aspect ratio for video recording (2:1)
-                optimizeObjectMat = mRgba.submat((int) (trackingHandler.getRoiRect2d().y + (trackingHandler.getRoiRect2d().height / 2) - trackingHandler.getRoiRect2d().width / 4), (int) ((trackingHandler.getRoiRect2d().y + (trackingHandler.getRoiRect2d().height / 2) - trackingHandler.getRoiRect2d().width / 4) + trackingHandler.getRoiRect2d().width / 2), (int) (trackingHandler.getRoiRect2d().x), (int) (trackingHandler.getRoiRect2d().x + trackingHandler.getRoiRect2d().width));
+                optimizeObjectMat = mRgba.submat((int) (targetObject_y + (targetObject_height / 2) - targetObject_width / 4), (int) ((targetObject_y + (targetObject_height / 2) - targetObject_width / 4) + targetObject_width / 2), (int) (trackingHandler.getRoiRect2d().x), (int) (trackingHandler.getRoiRect2d().x + targetObject_width));
             }
 
 
@@ -645,24 +651,32 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
                 // Full screen mode (for video recording)
             } else {
-                mRgba.copyTo(testMat);
+                System.out.print("test Mat" + testMat);
+                //mRgba.copyTo(testMat);
+                testMat = mRgba.clone();
 
                 //full the screen with target matrix
                 //Imgproc.resize(targetObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
                 Imgproc.resize(optimizeObjectMat, testMat, mRgba.size(), 0, 0, Imgproc.INTER_LINEAR_EXACT);
                 //draw on full screen
-                Imgproc.rectangle(testMat, trackingHandler.getroiRect(), trackingHandler.getGreenColorOutline(), 2);
+
+                Imgproc.rectangle(testMat, trackingHandler.getroiRect(), trackingHandler.getGreenColorOutline(), borderThicknessInt);
                 return testMat;
             }
 
 
-            Imgproc.rectangle(mRgba, trackingHandler.getroiRect(), trackingHandler.getGreenColorOutline(), 2);
+            Imgproc.rectangle(mRgba, trackingHandler.getroiRect(), trackingHandler.getGreenColorOutline(), borderThicknessInt);
             if (selectedRecognizedItem != null) {
                 Imgproc.putText(mRgba, selectedRecognizedItem.getTitle(), new Point(trackingHandler.getroiRect().x, trackingHandler.getroiRect().y), 1, 5, trackingHandler.getGreenColorOutline());
             } else {
                 Imgproc.putText(mRgba, "Target Object", new Point(trackingHandler.getroiRect().x, trackingHandler.getroiRect().y), 1, 5, trackingHandler.getGreenColorOutline());
             }
         }
+
+
+        //System.out.println("isDisplayInference; " + isDisplayInferenceTime);
+        //System.out.println("Get preference valie: " + getValueFromPerference("inferencetime", MainActivity.this));
+        //System.out.println("isDisplayInference: " + isDisplayThread);
 
         return mRgba;
         //============End of normal tracking==============//
@@ -672,9 +686,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
 
     //Tracker function
     //my own function
-
-
-    //===========TensorFlowLite==========//
+    //===========Object detection functiion==========//
     //CameraActivity
     protected int[] getRgbBytes() {
         imageConverter.run();
@@ -871,7 +883,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
             ImageUtils.saveBitmap(croppedBitmap);
         }
 
-        //Use worker thread to do the object detection/classification
+        //Call worker thread to do the object detection
         runInBackground(
                 new Runnable() {
                     @Override
@@ -898,7 +910,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                         final List<Classifier.Recognition> mappedRecognitions =
                                 new LinkedList<Classifier.Recognition>();
 
-                        //Draw Location of the rectangle, no need!!! I will draw it myself --Me
                         //Keep the logic
                         for (final Classifier.Recognition result : results) {
                             final RectF location = result.getLocation();
@@ -921,8 +932,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                         RecognizedItemList = mappedRecognitions;
                         trackingOverlay.postInvalidate();
 
-
-
                         computingDetection = false;
 
                         //Display value on screen
@@ -933,19 +942,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                                         showInference(lastProcessingTimeMs + "ms");
                                     }
                                 });
-
-            /*
-            runOnUiThread(
-                new Runnable() {
-                  @Override
-                  public void run() {
-                    showFrameInfo(previewWidth + "x" + previewHeight);
-                    showCropInfo(cropCopyBitmap.getWidth() + "x" + cropCopyBitmap.getHeight());
-                    showInference(lastProcessingTimeMs + "ms");
-                  }
-                });
-
-             */
                     }
                 });
     }
@@ -965,7 +961,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         });
     }
 
-    //=====================end of TensorFlow section=================//
+    //=====================end of object detection section=================//
 
     //Stop object detection feature
     //Can pause the object detection action
@@ -1078,6 +1074,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 DragRegionView.invalidate();
                 //testing****
                 //System.out.println("Coordinate: " + DragRegionView.points[0] + DragRegionView.points[1] + DragRegionView.points[2] + DragRegionView.points[3]);
+
+                //Automatic mode?
+                if(objectDetectionFeature == false && modeSwitch.isChecked()){
+                    objectDetectionFeature = true;
+                    rgbBytes = null;
+                }
                 break;
 
             case R.id.button_startRecord:
@@ -1135,7 +1137,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 //testing button
                 if (objectDetectionFeature == true) {
                     stopObjectDetection();
-
                     //button change to continue
                     button_pauseObjectDetection.setImageResource(R.drawable.button_continue_50x50);
                 } else {
@@ -1156,7 +1157,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                 //Turn on object detection feature
                 if (modeSwitch.isChecked()) {
                     trackingHandler.resetTrackerDetails();
-
                     objectDetectionFeature = true;
 
                     //testing
@@ -1168,15 +1168,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
                     button_pauseObjectDetection.setVisibility(View.VISIBLE);
                     detectedObjectSpinner.setVisibility(View.VISIBLE);
 
-                    if(isDisplayThread) threadlayout.setVisibility(View.VISIBLE);
-
-                    if(isDisplayInferenceTime) inferenceTimeLayout.setVisibility(View.VISIBLE);
-
-
+                    updateInferenceAndThreadStatus();
 
                     DragRegionView.setVisibility(View.GONE);
                     button_startTrack.setVisibility(View.GONE);
-                    button_resetTrack.setVisibility(View.GONE);
+
+                    //button_resetTrack.setVisibility(View.GONE);
 
                     Toast toast1 = Toast.makeText(MainActivity.this,
                             "Object Detection mode has turned ON.", Toast.LENGTH_LONG);
@@ -1228,7 +1225,6 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
             }
         }
 
-
     //Grant permission for Camera, Audio and ExternalStorageAccess
     public static boolean hasPermissions(Context context, String... permissions) {
         if (context != null && permissions != null) {
@@ -1246,5 +1242,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2, Vie
         SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault());
         String currentDateandTime = sdf.format(new Date());
         return currentDateandTime;
+    }
+
+    public void updateInferenceAndThreadStatus(){
+        //Null object!
+        if(getValueFromPerference("inferencetime", MainActivity.this).equals("Display")){
+            isDisplayInferenceTime = true;
+            if(objectDetectionFeature) inferenceTimeLayout.setVisibility(View.VISIBLE);
+        }
+        else isDisplayInferenceTime = false;
+
+        if(getValueFromPerference("threaddisplay", MainActivity.this).equals("Display")){
+            isDisplayThread = true;
+            if(objectDetectionFeature) threadlayout.setVisibility(View.VISIBLE);
+        }
+        else isDisplayThread = false;
     }
 }

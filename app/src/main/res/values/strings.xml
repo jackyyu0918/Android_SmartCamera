@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Object Tracking Camera (FYP)</string>
+    <string name="app_name">Smart Camera(Object Tracking)</string>
     <string name="startButtonText">Start tracking</string>
     <string name="resetButtonText">Reset</string>
     <string name="switchModeButtonText">Switch display mode</string>
@@ -15,7 +15,7 @@
     <string name="tracker">Tracker</string>
     <string name="objectDetection">Object Detection</string>>
 
-    <string name="trackerType">Tracker Type </string>>
+    <string name="trackerType">Tracker Type</string>>
 
     <string name="copyRight">Copyright ©2020 Jacky YU. All Rights Reserved.</string>
 

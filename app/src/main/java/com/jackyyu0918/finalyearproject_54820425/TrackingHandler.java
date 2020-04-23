@@ -10,6 +10,7 @@ import org.opencv.core.Scalar;
 import org.opencv.tracking.Tracker;
 import org.opencv.tracking.TrackerKCF;
 import org.opencv.tracking.TrackerMOSSE;
+import org.opencv.tracking.TrackerMedianFlow;
 
 //Singleton class
 public class TrackingHandler {
@@ -40,7 +41,6 @@ public class TrackingHandler {
         return TrackingHandler;
     }
 
-
     //Create Tracker based on the passed string
     public void createTracker(String trackerType) {
         switch (trackerType) {
@@ -51,6 +51,9 @@ public class TrackingHandler {
             case "MOSSE":
                 System.out.println("MOSSE case.");
                 objectTracker = TrackerMOSSE.create();
+                break;
+            case "MEDIANFLOW":
+                objectTracker = TrackerMedianFlow.create();
                 break;
             default:
                 break;
