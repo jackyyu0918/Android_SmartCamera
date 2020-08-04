@@ -5,7 +5,7 @@ User can switch between Automatic mode (automatically detect object) and Manual 
 Application Demonstration:
 https://www.youtube.com/watch?v=YxItgK3LdW0
 
-What is electronic image stabilization?
+## What is electronic image stabilization?
 ![image](https://invensense.tdk.com/wp-content/uploads/2016/02/eis-explained.png)
 
 # ScreenShot
