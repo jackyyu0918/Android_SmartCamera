@@ -1,6 +1,7 @@
 # SmartCamera
 This is an camera application with object tracking and electronic image stabilization feature on Android platform.
 User can switch between Automatic mode (automatically detect object) and Manual Mode (user drag the ROI).
+
 OpenCV4Android 4.1.0 library is used in this project.
 
 Application Demonstration:
