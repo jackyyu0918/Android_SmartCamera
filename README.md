@@ -6,9 +6,6 @@ The object detection feature is implemented by using TensorFlow Lite library and
 
 OpenCV4Android 4.1.0 library is used in this project.
 
-Application Demonstration:
-https://www.youtube.com/watch?v=YxItgK3LdW0
-
 ## What is electronic image stabilization?
 ![image](https://invensense.tdk.com/wp-content/uploads/2016/02/eis-explained.png)
 
